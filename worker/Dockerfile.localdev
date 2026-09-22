@@ -1,0 +1,25 @@
+# NOT for production/VPS use — see backend/Dockerfile.localdev for the same
+# pattern and why it exists.
+FROM python:3.12-slim AS build
+WORKDIR /app
+COPY .docker-ca/*.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+RUN pip install --no-cache-dir uv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --system-certs
+
+FROM python:3.12-slim AS runtime
+COPY --from=build /usr/local/share/ca-certificates/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+RUN useradd -m athena
+WORKDIR /app
+COPY --from=build /app/.venv /app/.venv
+COPY --chown=athena:athena . /app
+# httpx (via supabase-py, and this worker's own HN requests) verifies
+# against certifi's own bundled CA file, not the OS store just updated —
+# append the same local CA there too.
+RUN /app/.venv/bin/python -c "import certifi; open(certifi.where(), 'a').write(open('/usr/local/share/ca-certificates/avast-root.crt').read())"
+USER athena
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
+CMD ["python", "-m", "athena_worker.main"]

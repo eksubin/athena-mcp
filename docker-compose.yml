@@ -1,0 +1,41 @@
+# Phase 0-3: api + web + worker. Supabase itself stays managed (Supabase
+# Cloud), so it's not a service here.
+services:
+  api:
+    build: ./backend
+    env_file: .env
+    volumes:
+      - resumes:/data/resumes
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_* values are baked into the client bundle at build
+        # time — see frontend/Dockerfile. Pull them from the same .env
+        # docker-compose already loads for `api`.
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3000}
+    environment:
+      # Not NEXT_PUBLIC_ on purpose — server-side code in this container
+      # reaches `api` by its Docker service name, not the browser-facing
+      # URL above. See frontend/src/lib/api.ts.
+      API_INTERNAL_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  worker:
+    build: ./worker
+    env_file: .env
+    restart: unless-stopped
+
+volumes:
+  resumes:

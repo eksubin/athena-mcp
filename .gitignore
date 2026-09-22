@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+*.env
+!*.env.example
+.data/
+# Local-machine-only Docker build workaround for corporate/AV TLS interception
+# — never belongs in the real image. See *.Dockerfile.localdev.
+backend/.docker-ca/
+frontend/.docker-ca/
+worker/.docker-ca/
+docker-compose.override.yml
+node_modules/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.DS_Store

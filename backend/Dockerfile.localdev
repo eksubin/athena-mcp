@@ -1,0 +1,31 @@
+# NOT for production/VPS use — see docker-compose.override.yml. This exists
+# only because some local dev machines run software (antivirus, corporate
+# proxy) that TLS-intercepts outbound traffic with a locally-generated root
+# CA the container doesn't trust by default. Trusts that one extra CA, then
+# builds identically to the real Dockerfile.
+FROM python:3.12-slim AS build
+WORKDIR /app
+COPY .docker-ca/*.crt /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+RUN pip install --no-cache-dir uv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --system-certs
+
+FROM python:3.12-slim AS runtime
+COPY --from=build /usr/local/share/ca-certificates/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+RUN useradd -m athena
+WORKDIR /app
+COPY --from=build /app/.venv /app/.venv
+COPY --chown=athena:athena . /app
+# httpx (via supabase-py) verifies against certifi's own bundled CA file,
+# not the OS store update-ca-certificates just updated — append the same
+# local CA there too so the app's own outbound HTTPS calls work as well.
+RUN /app/.venv/bin/python -c "import certifi; open(certifi.where(), 'a').write(open('/usr/local/share/ca-certificates/avast-root.crt').read())"
+USER athena
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
+  CMD python -c "import urllib.request as u; u.urlopen('http://localhost:8000/health')" || exit 1
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
