@@ -9,6 +9,12 @@ RUN useradd -m athena
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY --chown=athena:athena . /app
+# Named Docker volumes are root-owned by default. Docker initializes a
+# *fresh* volume's contents (including ownership) from whatever already
+# exists at the mount point in the image, so creating it here with the
+# right owner — before docker-compose mounts /data/resumes over it — is
+# what makes the app (running as athena, not root) able to write into it.
+RUN mkdir -p /data/resumes && chown athena:athena /data/resumes
 USER athena
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1

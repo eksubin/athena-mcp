@@ -20,6 +20,26 @@ the supervised-browser approach doesn't. That tradeoff isn't this worker's
 to make unilaterally, so LinkedIn/Twitter search stays exactly as it is
 today — a skill-driven, visible-browser flow — and isn't automated here.
 
+`athena_worker/linkedin_ingest.py` does **not** change that. It fetches
+nothing and holds no session; it normalises captures a supervised browser
+has already read (company/location line, salary, relative posting date,
+Easy Apply flag) into `jobs` rows. The browser stays the fetcher, and the
+fiddly, regression-prone parsing becomes something with tests around it,
+shared by the agent-driven import and by `POST /jobs`.
+
+Two parsing rules there are deliberate rather than incidental:
+
+- **Salary must come from the listing header.** A LinkedIn job page also
+  renders salary ranges for unrelated "similar jobs"; a page-wide match
+  attaches another listing's pay to this one. Storing nothing beats
+  storing a confidently wrong number.
+- **Hourly rates are dropped, not annualised.** `$60/hr` isn't comparable
+  to a yearly `salary_min`, and any conversion would be an invented
+  assumption about hours per year.
+
+Posting dates are approximate by construction: LinkedIn shows only "6d
+ago" / "1 week ago", so `posted_at` is accurate to the day at best.
+
 ## Parsing is best-effort, not a guarantee
 
 HN's `Company | Role | Location | ...` convention isn't enforced, so

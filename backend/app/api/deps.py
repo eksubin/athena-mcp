@@ -44,21 +44,36 @@ def _authenticate(raw_token: str) -> tuple[str, str]:
     return user_id, mint_impersonation_jwt(user_id)
 
 
+def _profile_exists(user_id: str, client: Client) -> bool:
+    # maybe_single().execute() returns None outright (not a response with
+    # .data = None) when zero rows match — not an APIResponse in that case.
+    return (
+        client.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
+        is not None
+    )
+
+
 def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
     """Lazily creates the profile + world plot on a user's first
     authenticated request, rather than relying on a database trigger —
     keeps the plot-allocation math in one place (Python) instead of
-    duplicating it in plpgsql."""
-    # maybe_single().execute() returns None outright (not a response with
-    # .data = None) when zero rows match — not an APIResponse in that case.
-    existing = (
-        client.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
-    )
-    if existing is not None:
+    duplicating it in plpgsql.
+
+    Idempotent under concurrent calls on purpose: a page's layout and the
+    page itself both fetch server data for the same brand-new user at
+    nearly the same instant (Next.js runs sibling Server Components'
+    fetches in parallel), so two requests can both see "no profile yet"
+    and both try to insert. A 23505 here is therefore ambiguous — it
+    could be a genuine username collision (retry with a new one) or
+    another request winning that exact race (not a failure at all, the
+    profile exists either way) — so every conflict re-checks by id before
+    deciding which it was, instead of assuming it's always the former.
+    """
+    if _profile_exists(user_id, client):
         return
 
     created = False
-    for attempt in range(5):
+    for _ in range(5):
         try:
             client.table("profiles").insert(
                 {"id": user_id, "username": generate_username()}
@@ -66,18 +81,28 @@ def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
             created = True
             break
         except APIError as exc:
-            if exc.code == "23505":  # unique_violation on username — retry
-                continue
-            raise
+            if exc.code != "23505":
+                raise
+            if _profile_exists(user_id, client):
+                created = True
+                break
+            continue  # a real username collision — retry with a new one
     if not created:
         raise RuntimeError("could not allocate a unique username after 5 attempts")
 
     plot_count = client.table("world_plots").select("user_id", count="exact").execute()
     n = plot_count.count or 0
     origin_x, origin_y = allocate_plot(n)
-    client.table("world_plots").insert(
-        {"user_id": user_id, "origin_x": origin_x, "origin_y": origin_y}
-    ).execute()
+    try:
+        client.table("world_plots").insert(
+            {"user_id": user_id, "origin_x": origin_x, "origin_y": origin_y}
+        ).execute()
+    except APIError as exc:
+        if exc.code != "23505":
+            raise
+        # Same race, one step later: another concurrent request already
+        # created this user's plot (world_plots.user_id is a primary key).
+        # That's the outcome we wanted either way — nothing to do.
 
 
 def get_current_user(

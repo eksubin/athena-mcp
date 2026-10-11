@@ -1,0 +1,20 @@
+# Production reverse proxy — automatic HTTPS via Let's Encrypt, zero manual
+# cert management. Only used with docker-compose.prod.yml; local dev talks
+# to the api/web containers directly on :8000/:3000 and never sees this.
+#
+# {$ATHENA_DOMAIN}, {$ATHENA_API_DOMAIN} and {$ATHENA_DB_DOMAIN} come from
+# the environment (root .env) — see DEPLOY.md.
+
+{$ATHENA_DOMAIN} {
+	reverse_proxy web:3000
+}
+
+{$ATHENA_API_DOMAIN} {
+	reverse_proxy api:8000
+}
+
+# The self-hosted Supabase gateway (auth + rest) — see supabase/gateway/Caddyfile
+# for the actual /auth/v1 and /rest/v1 routing this just forwards into.
+{$ATHENA_DB_DOMAIN} {
+	reverse_proxy gateway:8001
+}

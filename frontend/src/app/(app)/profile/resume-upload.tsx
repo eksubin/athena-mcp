@@ -1,11 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 
 export default function ResumeUpload() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [filename, setFilename] = useState<string | null>(null);
 
@@ -30,6 +32,9 @@ export default function ResumeUpload() {
       });
       setFilename(file.name);
       setStatus("done");
+      // Extracted facts live in the parent Server Component's data — this
+      // re-fetches it so the new facts show up without a manual reload.
+      router.refresh();
     } catch {
       setStatus("error");
     }

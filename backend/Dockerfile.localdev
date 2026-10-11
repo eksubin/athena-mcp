@@ -22,6 +22,9 @@ COPY --chown=athena:athena . /app
 # not the OS store update-ca-certificates just updated — append the same
 # local CA there too so the app's own outbound HTTPS calls work as well.
 RUN /app/.venv/bin/python -c "import certifi; open(certifi.where(), 'a').write(open('/usr/local/share/ca-certificates/avast-root.crt').read())"
+# Same fix as the real Dockerfile — see its comment for why this has to
+# happen before the volume gets mounted over it.
+RUN mkdir -p /data/resumes && chown athena:athena /data/resumes
 USER athena
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1

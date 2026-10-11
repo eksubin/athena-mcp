@@ -2,22 +2,22 @@ import hashlib
 import secrets
 import time
 from datetime import datetime, timezone
-from functools import lru_cache
 
 import jwt
 from supabase import Client
 
 from app.core.config import get_settings
 
-# Real user sessions from this project are signed ES256 by GoTrue — verified
-# by actually decoding a live, GoTrue-issued session token's header, not
-# assumed. But PostgREST here accepts EITHER that ES256 key OR the legacy
-# HS256 shared secret (also verified live: a token minted with the secret
-# was accepted as a real authenticated session) — a normal transitional
-# setup. So: verify incoming web tokens via JWKS/ES256 (that's what real
-# sessions actually are), but keep minting impersonation tokens with the
-# legacy HS256 secret for the MCP path, since PostgREST is proven to accept
-# both and nobody but Supabase holds the ES256 private key to mint with.
+# This project self-hosts GoTrue (see docker-compose.yml's auth/rest/db/
+# gateway services) configured with a single GOTRUE_JWT_SECRET — no
+# asymmetric signing keys set up. So real web sessions and our own minted
+# MCP-impersonation tokens are both plain HS256, signed with the same
+# secret: one verification path covers both. (An earlier version of this
+# file targeted Supabase *Cloud*, whose GoTrue signs ES256 by default and
+# needed JWKS-based verification — that's gone now that this is
+# self-hosted. If this ever points at Cloud again, that distinction
+# matters; it doesn't for a self-hosted GOTRUE_JWT_SECRET setup.)
+ALGORITHM = "HS256"
 AUDIENCE = "authenticated"
 IMPERSONATION_TTL_SECONDS = 300
 
@@ -26,34 +26,27 @@ class InvalidCredentials(Exception):
     pass
 
 
-@lru_cache
-def _jwk_client() -> jwt.PyJWKClient:
-    settings = get_settings()
-    return jwt.PyJWKClient(f"{settings.supabase_url}/auth/v1/.well-known/jwks.json")
-
-
 def decode_web_jwt(token: str) -> dict:
-    """Verify a Supabase session JWT from the web app against the
-    project's published public signing key."""
-    signing_key = _jwk_client().get_signing_key_from_jwt(token)
+    """Verify a session JWT from the web app."""
+    settings = get_settings()
     return jwt.decode(
         token,
-        signing_key.key,
-        algorithms=["ES256", "RS256"],
+        settings.supabase_jwt_secret,
+        algorithms=[ALGORITHM],
         audience=AUDIENCE,
     )
 
 
 def mint_impersonation_jwt(user_id: str) -> str:
-    """Sign a short-lived Supabase-shaped JWT for `user_id`.
+    """Sign a short-lived session-shaped JWT for `user_id`.
 
     The MCP server can't do an OAuth redirect, so it authenticates with a
     personal access token instead. Once that token is resolved to a
-    user_id, this mints a short-lived HS256 token signed with the legacy
-    secret — not a real GoTrue session (only Supabase holds the ES256
-    private key for that), but PostgREST is configured to accept either,
-    so RLS still enforces access on this path exactly as it does on the
-    real-session path, instead of the API layer reimplementing the checks.
+    user_id, this mints a real (if short-lived) session token for that
+    user — signed with the same secret GoTrue itself uses — so the rest of
+    the request goes through PostgREST exactly like a real web session
+    would. RLS enforces access either way, instead of the API layer
+    reimplementing those checks for a second auth path.
     """
     settings = get_settings()
     now = int(time.time())
@@ -64,7 +57,7 @@ def mint_impersonation_jwt(user_id: str) -> str:
         "iat": now,
         "exp": now + IMPERSONATION_TTL_SECONDS,
     }
-    return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
+    return jwt.encode(payload, settings.supabase_jwt_secret, algorithm=ALGORITHM)
 
 
 def hash_token(raw: str) -> str:

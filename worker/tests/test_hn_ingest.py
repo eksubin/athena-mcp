@@ -63,3 +63,64 @@ def test_parse_thread_skips_non_comments_and_dead_deleted():
     rows = parse_thread(thread)
     assert len(rows) == 1
     assert rows[0]["external_id"] == "1"
+
+
+# --- Regression: posts that don't follow `Company | Role | Location` order.
+# Each of these landed a URL (or a role list) in the wrong column before
+# `_split_fields` classified parts by shape instead of by position.
+
+
+def test_url_in_second_position_is_not_treated_as_the_title():
+    comment = {
+        "id": 10,
+        "type": "comment",
+        "text": "Monumint (YC W24) | https://monumint.com | Full Stack Engineers | REMOTE",
+    }
+    job = parse_comment(comment)
+    assert job["company"] == "Monumint (YC W24)"
+    assert job["title"] == "Full Stack Engineers"
+    assert job["location"] == "REMOTE"
+    assert job["remote"] is True
+
+
+def test_location_before_role_is_not_swapped():
+    comment = {
+        "id": 11,
+        "type": "comment",
+        "text": "Mechanize | San Francisco, CA (Onsite) | Junior SWE, Research Engineer",
+    }
+    job = parse_comment(comment)
+    assert job["company"] == "Mechanize"
+    assert job["title"] == "Junior SWE, Research Engineer"
+    assert job["location"] == "San Francisco, CA (Onsite)"
+
+
+def test_bare_domain_is_recognised_as_a_url_not_a_title():
+    comment = {
+        "id": 12,
+        "type": "comment",
+        "text": "Category Labs | www.category.xyz | Senior Engineer | Remote and NYC",
+    }
+    job = parse_comment(comment)
+    assert job["title"] == "Senior Engineer"
+    assert job["location"] == "Remote and NYC"
+
+
+def test_employment_type_and_salary_parts_are_not_mistaken_for_location():
+    comment = {
+        "id": 13,
+        "type": "comment",
+        "text": "Acme | Full-time | $150k-$190k | Backend Engineer | Berlin",
+    }
+    job = parse_comment(comment)
+    assert job["title"] == "Backend Engineer"
+    assert job["location"] == "Berlin"
+    assert job["salary_min"] == 150000
+    assert job["salary_max"] == 190000
+
+
+def test_role_wins_over_location_when_a_part_contains_both():
+    comment = {"id": 14, "type": "comment", "text": "Globex | Remote Frontend Engineer | UK"}
+    job = parse_comment(comment)
+    assert job["title"] == "Remote Frontend Engineer"
+    assert job["location"] == "UK"

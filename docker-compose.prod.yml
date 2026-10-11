@@ -1,0 +1,66 @@
+# Production overlay: `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+# Adds Caddy in front of api+web+gateway for automatic HTTPS, and stops
+# publishing their ports directly to the host — only Caddy is
+# internet-facing. See DEPLOY.md.
+services:
+  api:
+    ports: !reset []
+    restart: always
+
+  web:
+    ports: !reset []
+    restart: always
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: https://${ATHENA_API_DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://${ATHENA_DB_DOMAIN}
+        NEXT_PUBLIC_SITE_URL: https://${ATHENA_DOMAIN}
+        # docker-compose merges build.args maps rather than replacing them,
+        # so the base file's default has to be overridden explicitly here
+        # — leaving self-serve signup reachable on a real deploy isn't a
+        # default any prod config should inherit by omission.
+        NEXT_PUBLIC_ENABLE_TEST_LOGIN: "false"
+
+  worker:
+    restart: always
+
+  auth:
+    restart: always
+    environment:
+      # Same reasoning as NEXT_PUBLIC_ENABLE_TEST_LOGIN above — the test
+      # login form is pointless to disable if the backend still accepts
+      # arbitrary email/password signups directly.
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "false"
+
+  rest:
+    restart: always
+
+  gateway:
+    ports: !reset []
+    restart: always
+
+  db:
+    restart: always
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    environment:
+      ATHENA_DOMAIN: ${ATHENA_DOMAIN}
+      ATHENA_API_DOMAIN: ${ATHENA_API_DOMAIN}
+      ATHENA_DB_DOMAIN: ${ATHENA_DB_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+      - gateway
+
+volumes:
+  caddy_data:
+  caddy_config:

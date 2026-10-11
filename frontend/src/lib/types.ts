@@ -41,6 +41,12 @@ export interface Profile {
   preferences: Preferences;
 }
 
+export interface ProfileFact {
+  key: string;
+  value: string;
+  confidence: number;
+}
+
 export interface Answer {
   id: string;
   question: string;

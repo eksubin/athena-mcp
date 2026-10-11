@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
-import type { Answer, Profile } from "@/lib/types";
+import type { Answer, Profile, ProfileFact } from "@/lib/types";
 import PreferencesForm from "./preferences-form";
 import ResumeUpload from "./resume-upload";
+import ExtractedFacts from "./extracted-facts";
 import AnswerBank from "./answer-bank";
 
 export default async function ProfilePage() {
@@ -13,9 +14,10 @@ export default async function ProfilePage() {
   } = await supabase.auth.getSession();
   if (!session) redirect("/login");
 
-  const [profile, answers] = await Promise.all([
+  const [profile, answers, facts] = await Promise.all([
     apiFetch<Profile>("/profile", session.access_token),
     apiFetch<Answer[]>("/answers", session.access_token),
+    apiFetch<ProfileFact[]>("/profile/facts", session.access_token),
   ]);
 
   return (
@@ -31,11 +33,13 @@ export default async function ProfilePage() {
       <section>
         <h2 className="text-sm font-semibold text-stone-900">Resume</h2>
         <p className="mt-1 text-sm text-stone-500">
-          Stored on the server, not parsed automatically yet — facts extracted from it will
-          show up here once that lands.
+          Contact info and a skills line get pulled out automatically — a best-effort read, not
+          a full parse, so double-check anything marked{" "}
+          <span className="text-stone-400">guess</span>.
         </p>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-col gap-3">
           <ResumeUpload />
+          <ExtractedFacts facts={facts} />
         </div>
       </section>
 

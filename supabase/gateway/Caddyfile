@@ -1,0 +1,46 @@
+# Routes a single SUPABASE_URL to the right self-hosted service, the same
+# way Supabase Cloud's own gateway does — strip the /auth/v1 or /rest/v1
+# prefix, forward the rest. This is what the official self-hosting stack
+# uses Kong for; a plain reverse proxy is enough for the two services we
+# actually run (auth, rest) and keeps the image count down.
+:8001 {
+	@preflight {
+		method OPTIONS
+	}
+
+	# GoTrue and PostgREST both set their own Access-Control-* headers on
+	# real (non-preflight) responses — confirmed directly: PostgREST sends
+	# "*", GoTrue sends "*" too, neither matching the specific origin a
+	# browser actually requires once credentials are involved. Strip them
+	# here, inside the proxy call, so the single top-level `header` block
+	# below is the only thing setting them — mixing a delete and a set for
+	# the same header name in one `header` block silently drops the set
+	# too (confirmed empirically), so delete and set can't live together.
+	handle_path /auth/v1/* {
+		reverse_proxy auth:9999 {
+			header_down -Access-Control-Allow-Origin
+			header_down -Access-Control-Allow-Credentials
+		}
+	}
+
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000 {
+			header_down -Access-Control-Allow-Origin
+			header_down -Access-Control-Allow-Credentials
+		}
+	}
+
+	header {
+		Access-Control-Allow-Origin "{http.request.header.Origin}"
+		Access-Control-Allow-Credentials "true"
+		Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		# Reflect whatever the browser actually asked to send, rather than a
+		# fixed list — supabase-js added x-supabase-api-version to every
+		# request at some point and broke a hardcoded allow-list; this
+		# can't go stale the same way.
+		Access-Control-Allow-Headers "{http.request.header.Access-Control-Request-Headers}"
+		Vary "Origin, Access-Control-Request-Headers"
+	}
+
+	respond @preflight 204
+}
