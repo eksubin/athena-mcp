@@ -1,62 +1,87 @@
 "use client";
-
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
+import { Icon } from "@/components/ui";
 
 export default function ResumeUpload() {
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
-  const [filename, setFilename] = useState<string | null>(null);
-
-  async function upload() {
+  const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">(
+    "idle",
+  );
+  const [selected, setSelected] = useState("");
+  const [message, setMessage] = useState("");
+  async function upload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     const file = fileRef.current?.files?.[0];
     if (!file) return;
-
     setStatus("uploading");
     try {
-      const supabase = createClient();
       const {
         data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-
+      } = await createClient().auth.getSession();
+      if (!session) throw new Error("Please sign in again.");
       const form = new FormData();
       form.append("file", file);
-
-      await apiFetch<{ id: string; original_filename: string }>("/resumes", session.access_token, {
-        method: "POST",
-        body: form,
-      });
-      setFilename(file.name);
+      const result = await apiFetch<{ parsed_at: string | null }>(
+        "/resumes",
+        session.access_token,
+        { method: "POST", body: form },
+      );
       setStatus("done");
-      // Extracted facts live in the parent Server Component's data — this
-      // re-fetches it so the new facts show up without a manual reload.
+      setMessage(
+        result.parsed_at
+          ? `${file.name} uploaded and processed.`
+          : `${file.name} saved. We couldn’t extract details from this file.`,
+      );
       router.refresh();
     } catch {
       setStatus("error");
+      setMessage("Upload failed. Please try a PDF, DOCX, or text file.");
     }
   }
-
   return (
-    <div className="flex max-w-md items-center gap-3 rounded-lg border border-stone-200 bg-white p-4">
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".pdf,.docx,.txt"
-        className="text-sm text-stone-600"
-      />
-      <button
-        onClick={upload}
-        disabled={status === "uploading"}
-        className="rounded-full bg-stone-900 px-4 py-2 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
-      >
-        {status === "uploading" ? "Uploading…" : "Upload"}
-      </button>
-      {status === "done" && <span className="text-xs text-emerald-700">Saved {filename}</span>}
-      {status === "error" && <span className="text-xs text-red-600">Upload failed</span>}
-    </div>
+    <form onSubmit={upload}>
+      <div className="upload-zone">
+        <span className="icon-tile">
+          <Icon name="upload" />
+        </span>
+        <h3>Make your experience count.</h3>
+        <p>Choose your latest resume · PDF, DOCX, or TXT</p>
+        <input
+          className="file-input"
+          aria-label="Choose resume file"
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.docx,.txt"
+          onChange={(e) => {
+            setSelected(e.target.files?.[0]?.name ?? "");
+            setStatus("idle");
+          }}
+        />
+      </div>
+      <div className="upload-footer">
+        <button
+          className="button button-primary"
+          type="submit"
+          disabled={!selected || status === "uploading"}
+        >
+          <Icon name="upload" size={15} />
+          {status === "uploading" ? "Uploading…" : "Upload resume"}
+        </button>
+        <span className="field-hint">Only visible to you</span>
+      </div>
+      {(status === "done" || status === "error") && (
+        <p
+          role={status === "error" ? "alert" : "status"}
+          className={status === "error" ? "form-error" : "form-status"}
+          style={{ marginTop: 15 }}
+        >
+          {message}
+        </p>
+      )}
+    </form>
   );
 }

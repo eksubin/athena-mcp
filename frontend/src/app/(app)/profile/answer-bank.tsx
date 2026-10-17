@@ -1,90 +1,119 @@
 "use client";
-
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 import type { Answer } from "@/lib/types";
+import { Icon } from "@/components/ui";
 
-export default function AnswerBank({ initialAnswers }: { initialAnswers: Answer[] }) {
+export default function AnswerBank({
+  initialAnswers,
+}: {
+  initialAnswers: Answer[];
+}) {
   const [answers, setAnswers] = useState(initialAnswers);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [sensitive, setSensitive] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  async function addAnswer() {
+  const [error, setError] = useState("");
+  async function addAnswer(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (!question.trim() || !answer.trim()) return;
     setSaving(true);
+    setError("");
     try {
-      const supabase = createClient();
       const {
         data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-
+      } = await createClient().auth.getSession();
+      if (!session) throw new Error("Please sign in again.");
       const saved = await apiFetch<Answer>("/answers", session.access_token, {
         method: "POST",
-        body: JSON.stringify({ question: question.trim(), answer: answer.trim(), sensitive }),
+        body: JSON.stringify({
+          question: question.trim(),
+          answer: answer.trim(),
+          sensitive,
+        }),
       });
-      setAnswers((prev) => [saved, ...prev.filter((a) => a.question !== saved.question)]);
+      setAnswers((prev) => [
+        saved,
+        ...prev.filter((a) => a.question !== saved.question),
+      ]);
       setQuestion("");
       setAnswer("");
       setSensitive(false);
+    } catch {
+      setError("Your answer couldn’t be saved. Please try again.");
     } finally {
       setSaving(false);
     }
   }
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex max-w-lg flex-col gap-2 rounded-lg border border-stone-200 bg-white p-4">
-        <input
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Question (e.g. Why do you want to work here?)"
-          className="rounded-md border border-stone-300 px-3 py-2 text-sm"
-        />
-        <textarea
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          placeholder="Answer"
-          rows={3}
-          className="rounded-md border border-stone-300 px-3 py-2 text-sm"
-        />
-        <label className="flex items-center gap-2 text-xs text-stone-600">
+    <div className="answer-grid">
+      <form className="form-stack" onSubmit={addAnswer}>
+        <label className="field">
+          <span className="field-label">Application question</span>
+          <input
+            className="input"
+            required
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="What are you looking for in your next role?"
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">Your answer</span>
+          <textarea
+            className="input"
+            required
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Describe the work, team, or impact that matters to you."
+            rows={4}
+          />
+        </label>
+        <label className="check-label">
           <input
             type="checkbox"
             checked={sensitive}
             onChange={(e) => setSensitive(e.target.checked)}
-            className="rounded border-stone-300"
           />
-          Sensitive — confirm before reuse each time
+          <span>Sensitive information — confirm before reuse</span>
         </label>
-        <button
-          onClick={addAnswer}
-          disabled={saving}
-          className="mt-1 self-start rounded-full bg-stone-900 px-4 py-2 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save answer"}
-        </button>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        {answers.length === 0 && (
-          <p className="text-sm text-stone-400">No answers saved yet.</p>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div>
+          <button
+            className="button button-primary"
+            disabled={saving || !question.trim() || !answer.trim()}
+            type="submit"
+          >
+            {saving ? "Saving…" : "Save answer"}
+            <Icon name="arrow" size={15} />
+          </button>
+        </div>
+      </form>
+      <div className="answer-list" aria-live="polite">
+        {!answers.length && (
+          <div className="answer-empty">
+            <Icon name="message" size={28} />
+            <h3>Your words, ready when you need them.</h3>
+            <p>Save an answer to start building your personal library.</p>
+          </div>
         )}
         {answers.map((a) => (
-          <div key={a.id} className="rounded-md border border-stone-200 bg-white p-3">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-stone-900">{a.question}</p>
-              {a.sensitive && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                  sensitive
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-stone-600">{a.answer}</p>
-          </div>
+          <article key={a.id} className="answer-item">
+            <h3>{a.question}</h3>
+            <p>{a.answer}</p>
+            {a.sensitive && (
+              <span className="pill">
+                <Icon name="shield" size={11} />
+                Confirm before reuse
+              </span>
+            )}
+          </article>
         ))}
       </div>
     </div>

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import Link from "next/link";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
+import { Icon } from "@/components/ui";
 import type { Application, ApplicationStatus, JobSummary } from "@/lib/types";
 
 const STATUSES: ApplicationStatus[] = [
@@ -13,25 +15,20 @@ const STATUSES: ApplicationStatus[] = [
   "offer",
   "rejected",
 ];
-
-const STATUS_LABELS: Record<ApplicationStatus, string> = {
+const LABELS: Record<ApplicationStatus, string> = {
   saved: "Saved",
   applied: "Applied",
   pending: "Pending",
   interview: "Interview",
   offer: "Offer",
-  rejected: "Rejected",
+  rejected: "Closed",
 };
-
-// What "move forward" means from each status — rejection happens from the
-// job's side, not a button a user clicks on themselves, so it's absent here.
-const NEXT_STATUS: Partial<Record<ApplicationStatus, ApplicationStatus>> = {
+const NEXT: Partial<Record<ApplicationStatus, ApplicationStatus>> = {
   saved: "applied",
   applied: "pending",
   pending: "interview",
   interview: "offer",
 };
-
 interface Props {
   initialApplications: Application[];
   jobById: Record<string, JobSummary>;
@@ -40,71 +37,234 @@ interface Props {
 export default function StatusBoard({ initialApplications, jobById }: Props) {
   const [applications, setApplications] = useState(initialApplications);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState<"board" | "list">("board");
+  const count = (status: ApplicationStatus) =>
+    applications.filter((a) => a.status === status).length;
+  const active = applications.filter(
+    (a) =>
+      a.status !== "saved" && a.status !== "rejected" && a.status !== "offer",
+  ).length;
+  const search = query.trim().toLowerCase();
+  const filtered = applications.filter(
+    (a) =>
+      !search ||
+      [jobById[a.job_id]?.title, jobById[a.job_id]?.company, LABELS[a.status]]
+        .join(" ")
+        .toLowerCase()
+        .includes(search),
+  );
 
   async function advance(app: Application) {
-    const next = NEXT_STATUS[app.status];
+    const next = NEXT[app.status];
     if (!next) return;
-
     setBusyId(app.id);
+    setError("");
     try {
-      const supabase = createClient();
       const {
         data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const updated = await apiFetch<Application>(`/applications/${app.id}`, session.access_token, {
-        method: "PATCH",
-        body: JSON.stringify({ status: next }),
-      });
-      startTransition(() => {
-        setApplications((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-      });
+      } = await createClient().auth.getSession();
+      if (!session)
+        throw new Error("Please sign in again to update this application.");
+      const updated = await apiFetch<Application>(
+        `/applications/${app.id}`,
+        session.access_token,
+        { method: "PATCH", body: JSON.stringify({ status: next }) },
+      );
+      setApplications((prev) =>
+        prev.map((a) => (a.id === updated.id ? updated : a)),
+      );
+    } catch {
+      setError("We couldn’t move this application. Please try again.");
     } finally {
       setBusyId(null);
     }
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-      {STATUSES.map((status) => {
-        const inColumn = applications.filter((a) => a.status === status);
-        return (
-          <div key={status} className="rounded-lg border border-stone-200 bg-stone-100/60 p-3">
-            <h2 className="mb-3 text-xs font-semibold tracking-wide text-stone-500 uppercase">
-              {STATUS_LABELS[status]}{" "}
-              <span className="font-normal text-stone-400">({inColumn.length})</span>
-            </h2>
-            <div className="flex flex-col gap-2">
-              {inColumn.map((a) => {
-                const job = jobById[a.job_id];
-                const next = NEXT_STATUS[a.status];
-                return (
-                  <div
-                    key={a.id}
-                    className="rounded-md border border-stone-200 bg-white p-3 shadow-sm"
-                  >
-                    <p className="text-sm font-medium text-stone-900">
-                      {job?.title ?? "Unknown role"}
-                    </p>
-                    <p className="text-xs text-stone-500">{job?.company}</p>
-                    {next && (
-                      <button
-                        onClick={() => advance(a)}
-                        disabled={busyId === a.id}
-                        className="mt-2 text-xs font-medium text-emerald-700 hover:underline disabled:opacity-50"
-                      >
-                        {busyId === a.id ? "Moving…" : `Move to ${STATUS_LABELS[next]} →`}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+    <>
+      <div
+        className="overview-grid"
+        aria-label="Application summary"
+        aria-live="polite"
+      >
+        <section className="card metric-card metric-wide">
+          <div className="metric-top">
+            <span>Total opportunities</span>
+            <Icon name="briefcase" size={18} />
+          </div>
+          <div className="metric-bottom">
+            <p className="metric-number">
+              {applications.length.toString().padStart(2, "0")}
+            </p>
+            <span className="metric-caption">
+              {active} in progress
+              <br />
+              {count("saved")} saved for later
+            </span>
+          </div>
+          <div className="metric-bar" aria-hidden="true">
+            {STATUSES.map((status) => (
+              <span
+                key={status}
+                style={{ flex: Math.max(count(status), 0.2) }}
+              />
+            ))}
+          </div>
+          <p className="metric-note">Every next step, in one place</p>
+        </section>
+        <section className="card metric-card">
+          <div className="metric-top">
+            <span>Interviews</span>
+            <Icon name="message" size={18} />
+          </div>
+          <p className="metric-number">
+            {count("interview").toString().padStart(2, "0")}
+          </p>
+          <p className="metric-note">Conversations worth preparing for</p>
+        </section>
+        <section className="card metric-card">
+          <div className="metric-top">
+            <span>Offers</span>
+            <Icon name="spark" size={18} />
+          </div>
+          <p className="metric-number">
+            {count("offer").toString().padStart(2, "0")}
+          </p>
+          <p className="metric-note">New chapters on the horizon</p>
+        </section>
+      </div>
+      <section aria-labelledby="pipeline-heading">
+        <div className="section-title-row">
+          <div>
+            <h2 id="pipeline-heading">Your application pipeline</h2>
+            <p>From a first possibility to your next chapter.</p>
+          </div>
+          <span className="pill">{applications.length} opportunities</span>
+        </div>
+        <div className="board-toolbar">
+          <div className="segmented" aria-label="Pipeline view">
+            <button
+              className={view === "board" ? "selected" : ""}
+              aria-pressed={view === "board"}
+              onClick={() => setView("board")}
+            >
+              <Icon name="grid" size={14} /> Board view
+            </button>
+            <button
+              className={view === "list" ? "selected" : ""}
+              aria-pressed={view === "list"}
+              onClick={() => setView("list")}
+            >
+              <Icon name="list" size={14} /> List view
+            </button>
+          </div>
+          <label className="search-field">
+            <Icon name="search" size={16} />
+            <input
+              type="search"
+              aria-label="Search applications"
+              placeholder="Search roles or companies…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        </div>
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        {applications.length === 0 && (
+          <div className="card action-card" style={{ marginBottom: 20 }}>
+            <span className="icon-tile">
+              <Icon name="briefcase" />
+            </span>
+            <div>
+              <h3>Your next opportunity starts here.</h3>
+              <p>
+                Connect your assistant to find and save roles. Your applications
+                will appear here as you go.
+              </p>
+              <Link href="/settings" className="text-action">
+                Connect your assistant <Icon name="arrow" size={14} />
+              </Link>
             </div>
           </div>
-        );
-      })}
-    </div>
+        )}
+        {search && filtered.length === 0 && (
+          <p className="form-status" role="status" style={{ marginBottom: 16 }}>
+            No roles or companies match “{query}”. Try another search.
+          </p>
+        )}
+        <div className={`kanban ${view === "list" ? "list-view" : ""}`}>
+          {STATUSES.map((status) => {
+            const items = filtered.filter((a) => a.status === status);
+            return (
+              <section
+                key={status}
+                className="kanban-column"
+                aria-label={LABELS[status]}
+              >
+                <div className="column-heading">
+                  <span className={`status-dot ${status}`} />
+                  <h3>{LABELS[status]}</h3>
+                  <span className="count-badge">{items.length}</span>
+                </div>
+                <div className="job-stack">
+                  {items.map((a) => {
+                    const job = jobById[a.job_id];
+                    const next = NEXT[a.status];
+                    return (
+                      <article className="job-card" key={a.id}>
+                        <div className="job-top">
+                          <span className="company-mark">
+                            {(job?.company ?? "Role").slice(0, 2).toUpperCase()}
+                          </span>
+                          <span className="job-company" title={job?.company}>
+                            {job?.company ?? "Company unavailable"}
+                          </span>
+                        </div>
+                        <h3>{job?.title ?? "Role details unavailable"}</h3>
+                        <p className="job-meta">
+                          <Icon name="location" size={12} />
+                          {job?.remote
+                            ? "Remote"
+                            : job?.location || "Location not listed"}
+                        </p>
+                        <div className="job-footer">
+                          <span className="pill">
+                            {job?.salary_min
+                              ? "$" + Math.round(job.salary_min / 1000) + "k+"
+                              : "Tracked role"}
+                          </span>
+                          {next && (
+                            <button
+                              onClick={() => advance(a)}
+                              disabled={busyId === a.id}
+                              className="text-action"
+                              aria-label={`Move ${job?.title ?? "application"} to ${LABELS[next]}`}
+                            >
+                              {busyId === a.id ? "Moving…" : LABELS[next]}{" "}
+                              <Icon name="arrow" size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {items.length === 0 && (
+                  <div className="column-empty">
+                    {search ? "No matches" : "No opportunities here yet"}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      </section>
+    </>
   );
 }

@@ -1,6 +1,5 @@
 import type { ProfileFact } from "@/lib/types";
-
-const FACT_LABELS: Record<string, string> = {
+const LABELS: Record<string, string> = {
   name: "Name",
   email: "Email",
   phone: "Phone",
@@ -10,32 +9,28 @@ const FACT_LABELS: Record<string, string> = {
 };
 
 export default function ExtractedFacts({ facts }: { facts: ProfileFact[] }) {
-  if (facts.length === 0) {
+  if (!facts.length)
     return (
-      <p className="text-sm text-stone-400">
-        Nothing extracted yet — upload a resume above.
+      <p className="empty-note">
+        Your extracted details will appear here after an upload.
       </p>
     );
-  }
-
   return (
-    <div className="flex max-w-lg flex-col gap-2 rounded-lg border border-stone-200 bg-white p-4">
+    <dl className="facts">
       {facts.map((fact) => (
-        <div key={fact.key} className="flex items-start justify-between gap-3 text-sm">
-          <span className="w-24 shrink-0 font-medium text-stone-500">
-            {FACT_LABELS[fact.key] ?? fact.key}
-          </span>
-          <span className="flex-1 text-stone-900">{fact.value}</span>
+        <div className="fact-row" key={fact.key}>
+          <dt>{LABELS[fact.key] ?? fact.key}</dt>
+          <dd>{fact.value}</dd>
           {fact.confidence < 0.6 && (
             <span
-              className="shrink-0 text-[10px] text-stone-400"
-              title="Best-effort guess — worth double-checking"
+              className="pill"
+              title="This is a best-effort guess. Please double-check it."
             >
-              guess
+              Review
             </span>
           )}
         </div>
       ))}
-    </div>
+    </dl>
   );
 }

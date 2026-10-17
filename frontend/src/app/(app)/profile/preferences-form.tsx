@@ -1,86 +1,119 @@
 "use client";
-
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 import type { Preferences, Profile } from "@/lib/types";
+import { Icon } from "@/components/ui";
 
 export default function PreferencesForm({
   initialPreferences,
 }: {
   initialPreferences: Preferences;
 }) {
-  const [titles, setTitles] = useState((initialPreferences.titles ?? []).join(", "));
-  const [remoteOnly, setRemoteOnly] = useState(initialPreferences.remote_only ?? false);
-  const [salaryMin, setSalaryMin] = useState(initialPreferences.salary_min?.toString() ?? "");
+  const [titles, setTitles] = useState(
+    (initialPreferences.titles ?? []).join(", "),
+  );
+  const [remoteOnly, setRemoteOnly] = useState(
+    initialPreferences.remote_only ?? false,
+  );
+  const [salaryMin, setSalaryMin] = useState(
+    initialPreferences.salary_min?.toString() ?? "",
+  );
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [error, setError] = useState("");
 
-  async function save() {
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setStatus("saving");
-    const preferences: Preferences = {
-      titles: titles
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-      remote_only: remoteOnly,
-      ...(salaryMin ? { salary_min: Number(salaryMin) } : {}),
-    };
-
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) return;
-
-    await apiFetch<Profile>("/profile", session.access_token, {
-      method: "PATCH",
-      body: JSON.stringify({ preferences }),
-    });
-    setStatus("saved");
-    setTimeout(() => setStatus("idle"), 1500);
+    setError("");
+    try {
+      const preferences: Preferences = {
+        titles: titles
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        remote_only: remoteOnly,
+        ...(salaryMin ? { salary_min: Number(salaryMin) } : {}),
+      };
+      const {
+        data: { session },
+      } = await createClient().auth.getSession();
+      if (!session) throw new Error("Please sign in again.");
+      await apiFetch<Profile>("/profile", session.access_token, {
+        method: "PATCH",
+        body: JSON.stringify({ preferences }),
+      });
+      setStatus("saved");
+    } catch {
+      setError("Your preferences couldn’t be saved. Please try again.");
+      setStatus("idle");
+    }
   }
-
   return (
-    <div className="flex max-w-md flex-col gap-3 rounded-lg border border-stone-200 bg-white p-4">
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-stone-700">Target titles</span>
+    <form className="form-stack" onSubmit={save}>
+      <label className="field">
+        <span className="field-label">Target roles</span>
         <input
+          className="input"
           value={titles}
-          onChange={(e) => setTitles(e.target.value)}
-          placeholder="backend engineer, platform engineer"
-          className="rounded-md border border-stone-300 px-3 py-2 text-sm"
+          onChange={(e) => {
+            setTitles(e.target.value);
+            setStatus("idle");
+          }}
+          placeholder="Software engineer, product engineer"
         />
-        <span className="text-xs text-stone-400">Comma-separated, matched against job titles.</span>
+        <span className="field-hint">
+          Separate titles with commas to match a wider range of roles.
+        </span>
       </label>
-
-      <label className="flex items-center gap-2 text-sm">
+      <label className="field">
+        <span className="field-label">Minimum annual salary</span>
+        <input
+          className="input"
+          type="number"
+          min="0"
+          step="1000"
+          value={salaryMin}
+          onChange={(e) => {
+            setSalaryMin(e.target.value);
+            setStatus("idle");
+          }}
+          placeholder="e.g. 120000"
+        />
+        <span className="field-hint">
+          USD · Leave blank to explore all salary ranges.
+        </span>
+      </label>
+      <label className="check-label check-block">
         <input
           type="checkbox"
           checked={remoteOnly}
-          onChange={(e) => setRemoteOnly(e.target.checked)}
-          className="rounded border-stone-300"
+          onChange={(e) => {
+            setRemoteOnly(e.target.checked);
+            setStatus("idle");
+          }}
         />
-        <span className="font-medium text-stone-700">Remote only</span>
+        <span>Prioritize remote opportunities</span>
       </label>
-
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-stone-700">Minimum salary</span>
-        <input
-          type="number"
-          value={salaryMin}
-          onChange={(e) => setSalaryMin(e.target.value)}
-          placeholder="150000"
-          className="rounded-md border border-stone-300 px-3 py-2 text-sm"
-        />
-      </label>
-
-      <button
-        onClick={save}
-        disabled={status === "saving"}
-        className="mt-1 self-start rounded-full bg-stone-900 px-4 py-2 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
-      >
-        {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Save preferences"}
-      </button>
-    </div>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div>
+        <button
+          className="button button-primary"
+          disabled={status === "saving"}
+          type="submit"
+        >
+          {status === "saving"
+            ? "Saving…"
+            : status === "saved"
+              ? "Preferences saved"
+              : "Save preferences"}
+          <Icon name={status === "saved" ? "check" : "arrow"} size={15} />
+        </button>
+      </div>
+    </form>
   );
 }

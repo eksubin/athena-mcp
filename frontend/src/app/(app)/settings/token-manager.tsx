@@ -1,102 +1,154 @@
 "use client";
-
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api";
 import type { AccessToken, AccessTokenCreated } from "@/lib/types";
+import { Icon } from "@/components/ui";
 
-export default function TokenManager({ initialTokens }: { initialTokens: AccessToken[] }) {
+export default function TokenManager({
+  initialTokens,
+}: {
+  initialTokens: AccessToken[];
+}) {
   const [tokens, setTokens] = useState(initialTokens);
   const [label, setLabel] = useState("");
-  const [justCreated, setJustCreated] = useState<AccessTokenCreated | null>(null);
+  const [justCreated, setJustCreated] = useState<AccessTokenCreated | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
-
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
   async function getToken() {
-    const supabase = createClient();
     const {
       data: { session },
-    } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
+    } = await createClient().auth.getSession();
+    if (!session) throw new Error("Please sign in again.");
+    return session.access_token;
   }
-
-  async function createToken() {
+  async function createToken(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setBusy(true);
+    setError("");
+    setCopied(false);
     try {
-      const token = await getToken();
-      if (!token) return;
-      const created = await apiFetch<AccessTokenCreated>("/tokens", token, {
-        method: "POST",
-        body: JSON.stringify({ label: label.trim() || "MCP token" }),
-      });
+      const created = await apiFetch<AccessTokenCreated>(
+        "/tokens",
+        await getToken(),
+        {
+          method: "POST",
+          body: JSON.stringify({ label: label.trim() || "My assistant" }),
+        },
+      );
       setJustCreated(created);
       setTokens((prev) => [
-        { id: created.id, label: created.label, created_at: new Date().toISOString(), last_used_at: null },
+        {
+          id: created.id,
+          label: created.label,
+          created_at: new Date().toISOString(),
+          last_used_at: null,
+        },
         ...prev,
       ]);
       setLabel("");
+    } catch {
+      setError("We couldn’t create your token. Please try again.");
     } finally {
       setBusy(false);
     }
   }
-
   async function revoke(id: string) {
-    const token = await getToken();
-    if (!token) return;
-    await apiFetch(`/tokens/${id}`, token, { method: "DELETE" });
-    setTokens((prev) => prev.filter((t) => t.id !== id));
+    setRevoking(id);
+    setError("");
+    try {
+      await apiFetch(`/tokens/${id}`, await getToken(), { method: "DELETE" });
+      setTokens((prev) => prev.filter((t) => t.id !== id));
+      if (justCreated?.id === id) setJustCreated(null);
+    } catch {
+      setError("We couldn’t revoke this token. Please try again.");
+    } finally {
+      setRevoking(null);
+    }
   }
-
+  async function copyToken() {
+    if (!justCreated) return;
+    try {
+      await navigator.clipboard.writeText(justCreated.token);
+      setCopied(true);
+    } catch {
+      setError(
+        "Clipboard access is unavailable. Select and copy the token below.",
+      );
+    }
+  }
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex max-w-md items-center gap-2 rounded-lg border border-stone-200 bg-white p-4">
-        <input
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder="Label (e.g. laptop MCP)"
-          className="flex-1 rounded-md border border-stone-300 px-3 py-2 text-sm"
-        />
-        <button
-          onClick={createToken}
-          disabled={busy}
-          className="rounded-full bg-stone-900 px-4 py-2 text-xs font-medium whitespace-nowrap text-white hover:bg-stone-700 disabled:opacity-60"
-        >
-          {busy ? "Creating…" : "New token"}
+    <>
+      <form className="token-create" onSubmit={createToken}>
+        <label className="field">
+          <span className="field-label">Connection name</span>
+          <input
+            className="input"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Claude on my laptop"
+          />
+        </label>
+        <button className="button button-primary" type="submit" disabled={busy}>
+          <Icon name="key" size={15} />
+          {busy ? "Creating…" : "Create token"}
         </button>
-      </div>
-
+      </form>
+      {error && (
+        <p className="form-error" role="alert" style={{ marginTop: 18 }}>
+          {error}
+        </p>
+      )}
       {justCreated && (
-        <div className="max-w-lg rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm">
-          <p className="font-medium text-emerald-900">
-            Copy this now — it won&apos;t be shown again.
-          </p>
-          <code className="mt-2 block overflow-x-auto rounded bg-white p-2 text-xs text-stone-800">
-            {justCreated.token}
-          </code>
+        <div className="token-reveal" role="status">
+          <h3>Your connection is ready.</h3>
+          <p>Copy your token now. You won’t be able to view it again.</p>
+          <code>{justCreated.token}</code>
+          <button
+            className="text-action"
+            onClick={copyToken}
+            style={{ marginTop: 12 }}
+          >
+            <Icon name={copied ? "check" : "key"} size={14} />
+            {copied ? "Copied" : "Copy token"}
+          </button>
         </div>
       )}
-
-      <div className="flex flex-col gap-2">
-        {tokens.length === 0 && <p className="text-sm text-stone-400">No tokens yet.</p>}
+      <div className="token-list">
+        {!tokens.length && (
+          <div className="answer-empty">
+            <Icon name="key" size={26} />
+            <h3>No connections yet.</h3>
+            <p>Create a token to give your assistant access to Athena.</p>
+          </div>
+        )}
         {tokens.map((t) => (
-          <div
-            key={t.id}
-            className="flex items-center justify-between rounded-md border border-stone-200 bg-white p-3"
-          >
-            <div>
-              <p className="text-sm font-medium text-stone-900">{t.label}</p>
-              <p className="text-xs text-stone-400">
-                {t.last_used_at ? `last used ${new Date(t.last_used_at).toLocaleString()}` : "never used"}
+          <div key={t.id} className="token-row">
+            <span className="icon-tile">
+              <Icon name="key" size={17} />
+            </span>
+            <div className="token-details">
+              <strong>{t.label}</strong>
+              <p>
+                {t.last_used_at
+                  ? `Last used ${new Date(t.last_used_at).toISOString().slice(0, 10)}`
+                  : "Ready to connect · Not used yet"}
               </p>
             </div>
             <button
+              className="button button-quiet"
+              disabled={revoking === t.id}
               onClick={() => revoke(t.id)}
-              className="text-xs font-medium text-red-600 hover:underline"
             >
-              Revoke
+              {revoking === t.id ? "Revoking…" : "Revoke"}
             </button>
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 }

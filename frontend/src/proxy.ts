@@ -5,9 +5,13 @@ import { SUPABASE_COOKIE_NAME } from "@/lib/supabase/cookie-name";
 const PUBLIC_PATHS = ["/login", "/auth"];
 
 // Same reasoning as lib/supabase/server.ts — this runs server-side too.
-const SUPABASE_URL = process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_URL =
+  process.env.SUPABASE_INTERNAL_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
 export async function proxy(request: NextRequest) {
+  // The public landing page needs no session and stays available even when
+  // authentication is temporarily unavailable.
+  if (request.nextUrl.pathname === "/") return NextResponse.next({ request });
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -20,7 +24,9 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
@@ -37,7 +43,9 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublic = PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+  const isPublic = PUBLIC_PATHS.some((path) =>
+    request.nextUrl.pathname.startsWith(path),
+  );
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -48,5 +56,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

@@ -1,3 +1,5 @@
+import time
+
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -47,10 +49,20 @@ def _authenticate(raw_token: str) -> tuple[str, str]:
 def _profile_exists(user_id: str, client: Client) -> bool:
     # maybe_single().execute() returns None outright (not a response with
     # .data = None) when zero rows match — not an APIResponse in that case.
-    return (
-        client.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
-        is not None
-    )
+    for attempt in range(3):
+        try:
+            return (
+                client.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
+                is not None
+            )
+        except APIError as exc:
+            # A freshly issued, already verified web JWT can briefly be
+            # ahead of PostgREST's clock. Retry only this initial read;
+            # never relax signature/expiry validation or retry writes.
+            if exc.code != "PGRST303" or exc.message != "JWT issued at future" or attempt == 2:
+                raise
+            time.sleep(0.5)
+    return False  # unreachable, but keeps the return type explicit
 
 
 def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
@@ -69,11 +81,10 @@ def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
     profile exists either way) — so every conflict re-checks by id before
     deciding which it was, instead of assuming it's always the former.
     """
-    if _profile_exists(user_id, client):
-        return
-
-    created = False
+    created = _profile_exists(user_id, client)
     for _ in range(5):
+        if created:
+            break
         try:
             client.table("profiles").insert(
                 {"id": user_id, "username": generate_username()}
@@ -90,19 +101,33 @@ def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
     if not created:
         raise RuntimeError("could not allocate a unique username after 5 attempts")
 
-    plot_count = client.table("world_plots").select("user_id", count="exact").execute()
-    n = plot_count.count or 0
-    origin_x, origin_y = allocate_plot(n)
-    try:
-        client.table("world_plots").insert(
-            {"user_id": user_id, "origin_x": origin_x, "origin_y": origin_y}
-        ).execute()
-    except APIError as exc:
-        if exc.code != "23505":
-            raise
-        # Same race, one step later: another concurrent request already
-        # created this user's plot (world_plots.user_id is a primary key).
-        # That's the outcome we wanted either way — nothing to do.
+    # Profile creation can succeed while plot creation fails. Always repair
+    # that partial state, and distinguish coordinate collisions from an
+    # already-created plot. Counts alone can reuse occupied coordinates
+    # after an account is deleted.
+    for _ in range(10):
+        if client.table("world_plots").select("user_id").eq(
+            "user_id", user_id
+        ).maybe_single().execute() is not None:
+            return
+        n = client.table("world_plots").select("user_id", count="exact").execute().count or 0
+        while True:
+            origin_x, origin_y = allocate_plot(n)
+            occupied = client.table("world_plots").select("user_id").eq(
+                "origin_x", origin_x
+            ).eq("origin_y", origin_y).maybe_single().execute()
+            if occupied is None:
+                break
+            n += 1
+        try:
+            client.table("world_plots").insert(
+                {"user_id": user_id, "origin_x": origin_x, "origin_y": origin_y}
+            ).execute()
+            return
+        except APIError as exc:
+            if exc.code != "23505":
+                raise
+    raise RuntimeError("could not allocate a world plot after 10 attempts")
 
 
 def get_current_user(

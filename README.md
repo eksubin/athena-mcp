@@ -25,13 +25,12 @@ its free tier auto-paused the project and took the whole app down with it.
   answers, jobs, applications, world, personal-access-token endpoints
 - `mcp/` — MCP server exposing `search_jobs`, `get_job`, `save_job`,
   `get_queue`, `start_application`, `record_answer`, `update_status`,
-  `get_profile`
-- `frontend/` — Next.js app: Google sign-in, an application Kanban board,
+  `get_profile`, and `import_linkedin_job`
+- `frontend/` — Next.js app: public landing page, Google sign-in, an application board/list view,
   profile/resume/answer-bank editing (resumes get parsed into structured
   facts on upload), MCP token management, and a three.js render of the
-  shared world (live updates via Supabase Realtime deliberately not
-  included in the self-hosted stack yet — see below; the page still works,
-  just needs a refresh to see others' changes)
+  shared world. While visible, the world refreshes every 15 seconds;
+  Supabase Realtime is not required.
 - `worker/` — ingests HN's "Who is hiring?" thread on a schedule (public
   API, no login). LinkedIn/Twitter deliberately stay a human-supervised
   browser flow, not automated — see `worker/README.md` for why
@@ -197,6 +196,35 @@ Add to Claude Code's MCP config:
   }
 }
 ```
+
+For Codex setup and a BrowserOS application walkthrough, see
+[mcp/README.md](mcp/README.md). Athena prepares and tracks applications;
+only the employer's browser form actually submits one.
+
+## Verification
+
+With the local Docker stack running, run the disposable-account integration
+check from PowerShell at the repository root:
+
+```powershell
+Get-Content -Raw scripts/smoke_test.py | docker compose exec -T api python -
+mcp/.venv/Scripts/python.exe scripts/mcp_smoke_test.py
+```
+
+The first checks the API, resume parsing, world growth, token revocation,
+and authenticated web pages. The second checks all nine MCP tools over
+stdio (run `uv sync` in `mcp/` first). Both delete their test accounts and
+jobs, and the first removes its uploaded file.
+
+Run `uv run pytest` in `backend/` and `worker/`, and `npm run lint` plus
+`npm run build` in `frontend/`. On Windows, if Turbopack exits while
+starting its CSS worker, use `npm run build:webpack`; the Docker build
+can continue to use Turbopack.
+
+Google OAuth requires `GOOGLE_CLIENT_ID` and `GOOGLE_SECRET` in `.env`
+and the callback URL configured in Google Cloud. Local test login works
+without these. The world polls for updates while visible instead of
+connecting to the unsupported Supabase Realtime service.
 
 ## Repo layout
 

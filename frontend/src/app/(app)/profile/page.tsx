@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import type { Answer, Profile, ProfileFact } from "@/lib/types";
+import { Icon, PageHeading, SectionHeading } from "@/components/ui";
 import PreferencesForm from "./preferences-form";
 import ResumeUpload from "./resume-upload";
 import ExtractedFacts from "./extracted-facts";
@@ -13,57 +14,57 @@ export default async function ProfilePage() {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) redirect("/login");
-
   const [profile, answers, facts] = await Promise.all([
     apiFetch<Profile>("/profile", session.access_token),
     apiFetch<Answer[]>("/answers", session.access_token),
     apiFetch<ProfileFact[]>("/profile/facts", session.access_token),
   ]);
-
   return (
-    <div className="flex flex-col gap-10">
-      <div>
-        <h1 className="text-xl font-semibold text-stone-900">Profile</h1>
-        <p className="mt-1 text-sm text-stone-500">
-          Signed in as <span className="font-medium text-stone-700">{profile.username}</span> —
-          this is what other users see on the map, never your real name.
-        </p>
+    <>
+      <PageHeading
+        eyebrow="Your story, ready for what’s next"
+        title="A profile that’s all you."
+        description="Your experience, your preferences, your words. Give every application a stronger starting point."
+      />
+      <div className="card profile-summary">
+        <span className="avatar">
+          {profile.username.slice(0, 2).toUpperCase()}
+        </span>
+        <div>
+          <h2>{profile.username}</h2>
+          <p>Your public identity in the shared world</p>
+        </div>
+        <span className="privacy-note">
+          <Icon name="shield" size={15} /> Your resume and answers stay private
+        </span>
       </div>
-
-      <section>
-        <h2 className="text-sm font-semibold text-stone-900">Resume</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Contact info and a skills line get pulled out automatically — a best-effort read, not
-          a full parse, so double-check anything marked{" "}
-          <span className="text-stone-400">guess</span>.
-        </p>
-        <div className="mt-3 flex flex-col gap-3">
+      <div className="profile-grid">
+        <section className="card card-pad">
+          <SectionHeading
+            icon="file"
+            title="Your resume"
+            description="Upload your experience once. We’ll pull out contact details and recognizable skills."
+          />
           <ResumeUpload />
           <ExtractedFacts facts={facts} />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-stone-900">Search preferences</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          What <code className="rounded bg-stone-200 px-1 py-0.5 text-xs">search_jobs</code> scores
-          against.
-        </p>
-        <div className="mt-3">
+        </section>
+        <section className="card card-pad">
+          <SectionHeading
+            icon="settings"
+            title="The right fit"
+            description="Tell us what matters. These preferences help rank the opportunities you discover."
+          />
           <PreferencesForm initialPreferences={profile.preferences} />
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-sm font-semibold text-stone-900">Answer bank</h2>
-        <p className="mt-1 text-sm text-stone-500">
-          Reusable answers for application questions. Sensitive ones (salary, visa status) still
-          get confirmed each time rather than reused silently.
-        </p>
-        <div className="mt-3">
+        </section>
+        <section className="card card-pad full-width">
+          <SectionHeading
+            icon="message"
+            title="Your answer library"
+            description="Thoughtful answers, ready to reuse. Keep sensitive details marked for confirmation."
+          />
           <AnswerBank initialAnswers={answers} />
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </>
   );
 }

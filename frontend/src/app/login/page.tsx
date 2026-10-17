@@ -1,48 +1,112 @@
 "use client";
-
+import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Brand, Icon } from "@/components/ui";
 
-// Dev/prototyping convenience — sign in with a plain email+password instead
-// of the full Google OAuth handshake, which needs a real browser capable of
-// completing it. Disable for a real public deploy by unsetting this.
 const TEST_LOGIN_ENABLED = process.env.NEXT_PUBLIC_ENABLE_TEST_LOGIN === "true";
-
 export default function LoginPage() {
   const [pending, setPending] = useState(false);
-
+  const [error, setError] = useState("");
   async function handleGoogleSignIn() {
     setPending(true);
-    const supabase = createClient();
-    // Deliberately not window.location.origin — that's whatever happens to
-    // be in the address bar (0.0.0.0, a LAN IP, a stale bookmark...), and
-    // Google/Supabase would faithfully send the user back to exactly that,
-    // even if it's not reachable. This is the one fixed, known-good origin.
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${siteUrl}/auth/callback` },
-    });
+    setError("");
+    try {
+      const siteUrl =
+        process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+      const { error: signInError } = await createClient().auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${siteUrl}/auth/callback` },
+      });
+      if (signInError) throw signInError;
+    } catch {
+      setError(
+        "Google sign-in is unavailable right now. Please try again later.",
+      );
+      setPending(false);
+    }
   }
-
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 bg-stone-50 px-4">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold tracking-tight text-stone-900">Athena</h1>
-        <p className="mt-2 text-stone-600">
-          Track what you&apos;ve saved, applied to, and heard back on — and watch your
-          territory grow while you do it.
+    <main className="login-page">
+      <section className="login-story">
+        <Link href="/" aria-label="Athena home">
+          <Brand />
+        </Link>
+        <div className="login-story-copy">
+          <p className="eyebrow">A calmer way to find what’s next</p>
+          <h1>
+            Your next chapter
+            <br />
+            starts with
+            <br />a little clarity.
+          </h1>
+          <p>
+            Bring your opportunities, your experience, and your progress into
+            one thoughtful space.
+          </p>
+          <div className="journey-card">
+            <div className="journey-header">
+              <span>Room for every next step</span>
+              <Icon name="briefcase" size={18} />
+            </div>
+            <div className="journey-track" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="journey-labels">
+              <span>Discover</span>
+              <span>Apply</span>
+              <span>Connect</span>
+              <span>Grow</span>
+            </div>
+            <div className="journey-footer">
+              <Icon name="shield" size={16} />
+              <span>Your search is personal. Your details stay private.</span>
+            </div>
+          </div>
+        </div>
+        <p className="login-story-footer">
+          A little more intention. A little less overwhelm.
         </p>
-      </div>
-      <button
-        onClick={handleGoogleSignIn}
-        disabled={pending}
-        className="rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-60"
-      >
-        {pending ? "Redirecting…" : "Continue with Google"}
-      </button>
-
-      {TEST_LOGIN_ENABLED && <TestLogin />}
+      </section>
+      <section className="login-form-side">
+        <div className="login-form">
+          <Link href="/" aria-label="Athena home">
+            <Brand />
+          </Link>
+          <p className="eyebrow">Welcome to your workspace</p>
+          <h2>Let’s find your next.</h2>
+          <p>Sign in to pick up your search and keep moving forward.</p>
+          <button
+            className="button button-primary button-full"
+            disabled={pending}
+            onClick={handleGoogleSignIn}
+          >
+            {pending ? "Connecting…" : "Continue with Google"}
+            <Icon name="arrow" size={16} />
+          </button>
+          {error && (
+            <p role="alert" className="form-error" style={{ marginTop: 16 }}>
+              {error}
+            </p>
+          )}
+          <div className="login-privacy">
+            Your resume, answers, and applications are private.
+            <br />
+            Only your chosen username appears in the shared world.
+          </div>
+          {TEST_LOGIN_ENABLED && <TestLogin />}
+          <Link
+            className="test-login-toggle"
+            style={{ display: "block", marginTop: 24 }}
+            href="/"
+          >
+            Back to Athena
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }
@@ -51,82 +115,96 @@ function TestLogin() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState<"in" | "up" | null>(null);
-
   async function submit(action: "in" | "up") {
     setBusy(action);
-    setError(null);
-    // Routed through a server-side handler rather than calling
-    // supabase.auth.signInWithPassword/signUp directly from here — see
-    // auth/test-login/route.ts for why that matters (the short version:
-    // the session cookie only gets set reliably on the server side).
-    const res = await fetch("/auth/test-login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, action }),
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: "Something went wrong." }));
-      setError(body.error ?? "Something went wrong.");
+    setError("");
+    try {
+      const res = await fetch("/auth/test-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, action }),
+      });
+      if (!res.ok) {
+        const body = await res
+          .json()
+          .catch(() => ({ error: "Sign-in failed. Please try again." }));
+        setError(body.error ?? "Sign-in failed. Please try again.");
+        setBusy(null);
+        return;
+      }
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/dashboard";
+    } catch {
+      setError("We couldn’t reach Athena. Please try again.");
       setBusy(null);
-      return;
     }
-    // A full navigation, not router.push — guarantees a fresh request
-    // through the middleware with the cookie the route handler just set,
-    // rather than relying on the client router's own transition.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/dashboard";
   }
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="text-xs text-stone-400 underline-offset-2 hover:text-stone-600 hover:underline"
-      >
-        Test login (no Google needed)
-      </button>
-    );
-  }
-
   return (
-    <div className="flex w-full max-w-xs flex-col gap-2 rounded-lg border border-stone-200 bg-white p-4">
-      <p className="mb-1 text-center text-[11px] tracking-wide text-stone-400 uppercase">
-        Prototyping only — not for real accounts
-      </p>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="any@email.works"
-        className="rounded-md border border-stone-300 px-3 py-2 text-sm"
-      />
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="password (6+ characters)"
-        className="rounded-md border border-stone-300 px-3 py-2 text-sm"
-      />
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button
-          onClick={() => submit("in")}
-          disabled={busy !== null}
-          className="flex-1 rounded-md bg-stone-900 px-3 py-2 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
-        >
-          {busy === "in" ? "Signing in…" : "Sign in"}
+    <div className="test-login">
+      {!open ? (
+        <button className="test-login-toggle" onClick={() => setOpen(true)}>
+          Test login · No Google account needed
         </button>
-        <button
-          onClick={() => submit("up")}
-          disabled={busy !== null}
-          className="flex-1 rounded-md border border-stone-300 px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
+      ) : (
+        <form
+          className="form-stack"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit("in");
+          }}
         >
-          {busy === "up" ? "Creating…" : "Create test account"}
-        </button>
-      </div>
+          <p className="eyebrow">Local test workspace</p>
+          <label className="field">
+            <span className="field-label">Email address</span>
+            <input
+              className="input"
+              required
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+            />
+          </label>
+          <label className="field">
+            <span className="field-label">Password</span>
+            <input
+              className="input"
+              required
+              type="password"
+              minLength={6}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+            />
+          </label>
+          {error && (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="test-login-actions">
+            <button
+              className="button button-primary"
+              disabled={busy !== null}
+              type="submit"
+            >
+              {busy === "in" ? "Signing in…" : "Sign in"}
+            </button>
+            <button
+              className="button button-secondary"
+              disabled={busy !== null || !email || password.length < 6}
+              type="button"
+              onClick={() => submit("up")}
+            >
+              {busy === "up" ? "Creating…" : "Create account"}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

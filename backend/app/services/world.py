@@ -18,11 +18,9 @@ def allocate_plot(n: int) -> tuple[int, int]:
     """The nth (0-indexed) signup's plot, filled outward ring by ring from
     the origin on a square lattice — see spec section 05.
 
-    `n` is meant to be `count(world_plots)` at call time rather than a
-    dedicated sequence. Two signups racing for the same `n` would collide on
-    the `(origin_x, origin_y)` unique constraint and the loser just retries
-    with the next count — an acceptable simplification for a cosmetic
-    feature, not worth a lock or a sequence for.
+    The caller starts at `count(world_plots)`, skips occupied positions
+    (deleted accounts may leave gaps), and retries unique conflicts when
+    concurrent signups choose the same position.
     """
     if n == 0:
         return (0, 0)

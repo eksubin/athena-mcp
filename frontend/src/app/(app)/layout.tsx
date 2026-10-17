@@ -4,7 +4,11 @@ import { apiFetch } from "@/lib/api";
 import type { Profile } from "@/lib/types";
 import Nav from "@/components/nav";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const supabase = await createClient();
   const {
     data: { session },
@@ -17,9 +21,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const profile = await apiFetch<Profile>("/profile", session.access_token);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="app-shell">
       <Nav username={profile.username} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+      <div className="workspace">
+        <header className="workspace-topbar">
+          <div className="breadcrumb">
+            <span>Workspace</span>
+            <span>/</span>
+            <strong>Your career, thoughtfully organized</strong>
+          </div>
+          <span className="workspace-label">Personal space</span>
+        </header>
+        <main className="main-content" id="main-content">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

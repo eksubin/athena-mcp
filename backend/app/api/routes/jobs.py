@@ -68,7 +68,10 @@ def import_jobs(
     if not jobs:
         return []
 
-    rows = [j.model_dump(mode="json") for j in jobs]
+    # Browser imports often include just the observed title and URL. Do not
+    # erase descriptions or salary data already collected by another source
+    # when optional fields were omitted from a subsequent import.
+    rows = [j.model_dump(mode="json", exclude_unset=True) for j in jobs]
     written = (
         service_client()
         .table("jobs")
