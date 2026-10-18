@@ -7,8 +7,9 @@ during the first deploy, and splitting the MCP server into its own
 repository. [[Operations]] covers running the stack once it is up; this note
 covers the decisions taken before that.
 
-Decisions recorded here were taken on 2026-10-18 and are not yet carried
-out. Nothing has been deployed and the repository still has no git remote.
+Decisions recorded here were taken on 2026-10-18. The host choice has not
+been acted on: nothing is deployed and the repository still has no git
+remote. The MCP split below has since been built — see that section.
 
 ## Picking a host
 
@@ -62,17 +63,20 @@ quietly or fail late:
 
 ## Splitting out the MCP server
 
-The MCP server moves to its own repository. The web stack stays here.
+Done, as a prepared state in commit `a240270`: `mcp/` is now a
+self-contained repository root. It still sits in this repository, because
+the GitHub repository it belongs in does not exist yet — creating it and
+moving the tree across is one step, and the last one.
 
 ### Why
 
 Athena is invite-only, so every new user was personally invited — but
-connecting an assistant currently means obtaining a copy of this repository,
+connecting an assistant used to mean obtaining a copy of this repository,
 installing `uv`, running `uv sync`, and putting an absolute path into a
 client config. That is a developer-grade install to hand someone who was
 just invited.
 
-With its own repository the whole of a new user's configuration becomes:
+The whole of a new user's configuration is now:
 
 ```json
 {"mcpServers": {"athena": {
@@ -82,40 +86,79 @@ With its own repository the whole of a new user's configuration becomes:
           "ATHENA_TOKEN": "athena_pat_..."}}}}
 ```
 
-No checkout, no sync, no paths. Publishing to a registry is unnecessary once
-the repository is reachable.
+No checkout, no sync, no paths. Verified against the tree as it stands:
+`uvx --from <path-to-mcp> athena-mcp`, launched from a directory with
+nothing of Athena in it and configured through environment variables
+alone, serves all ten tools. Publishing to a registry stays unnecessary
+once the repository is reachable; the name `athena-mcp` is free on PyPI if
+that ever changes.
 
-### What makes it feasible
+### What moved
 
-`mcp/` is already close to standalone: its own `pyproject.toml` with the
-`athena-mcp` console script, `uv.lock`, package, tests and README. The only
-reference it makes outside itself is `config.py` resolving
-`parents[1] / ".env"`, and that stays correct — that path becomes the new
-repository's root.
-
-### What has to move or change
-
-- `scripts/mcp_smoke_test.py`, which shells into `mcp/.venv/Scripts/python.exe`
-  from this repository's root and reads the root `.env`. It is the only
-  thing that exercises both sides together, so it has to keep working — from
-  the new repository, against a deployment reachable over the network.
+- `scripts/mcp_smoke_test.py` → `mcp/scripts/smoke_test.py`. It used to
+  shell into `mcp/.venv/Scripts/python.exe` from this repository's root
+  and read the root `.env`; it now launches `sys.executable` from a
+  temporary directory and takes the deployment from the environment
+  (`ATHENA_API_URL`, `ATHENA_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `SUPABASE_JWT_SECRET`). It is still the only check that exercises both
+  sides together, and it still passes against the local docker stack.
+- A README written for someone who has never seen Athena, its own
+  `.gitignore`, and `pyjwt` as the one dev dependency the smoke test adds.
 - The MCP sections of [README](../README.md),
-  [USER-GUIDE](../USER-GUIDE.md) section 4, [[API and MCP]], and
-  [[Architecture]]'s repository map.
+  [USER-GUIDE](../USER-GUIDE.md) section 4, [[API and MCP]] and
+  [[Architecture]]'s repository map now describe a separate installable
+  package rather than a folder.
 
-### The cost to plan for
+### What the split exposed
 
-The API contract becomes cross-repository. Today a change to
-`/applications/track`'s shape is one commit touching both sides. Afterwards
-a backend change can silently break every deployed client, and users update
-on their own schedule, so old clients will be in the field. The lightest
-useful mitigations are a minimum-API-version assertion at MCP startup, or a
-documented contract with the smoke test as its check. Undecided.
+`config.py` resolving `parents[1] / ".env"` does stay correct — that path
+becomes the new repository's root — but in an *installed* copy it resolves
+inside site-packages, where no `.env` will ever be. Harmless, now
+commented: environment variables are the real path for installed users,
+and they still take precedence over the file for a checkout.
 
-Also note that the server's `instructions` string is load-bearing: it is
+Worse was that `server.py` built `Settings()` and the client at module
+import, and `Settings.token` has no default. A config block with a
+mistyped `ATHENA_TOKEN` therefore produced a pydantic traceback, which an
+MCP client shows as nothing but a server that failed to start — the single
+most likely failure for the non-technical invitee this whole change is
+for. Both are now built in `main()`, and the two mistakes a new user
+actually makes say so in plain English: a missing `ATHENA_TOKEN` names the
+variable and the Settings page it comes from, and a token the deployment
+rejects is caught by the same startup check.
+
+### The cross-repository contract
+
+The cost was real and is now guarded. `/health` advertises two integers
+from `backend/app/core/contract.py` — `mcp_contract`, the contract this
+deployment speaks, and `mcp_contract_min`, the oldest client it still
+supports. The client declares its own in `athena_mcp/contract.py` and
+compares once at startup: below the minimum it refuses to start and gives
+the `uvx --refresh` line to update; ahead of the server it warns and
+continues, because someone who updated early should still get their work
+done; unreachable or unversioned, it starts quietly and lets each tool
+report the real error. Both numbers are at 1.
+
+[mcp/CONTRACT.md](../mcp/CONTRACT.md) is the endpoint list the number
+covers, the two behaviours that are load-bearing rather than incidental
+(`POST /applications` staying idempotent without resetting status, and
+`POST /applications/track` ignoring fields the caller omitted), and the
+rules for moving either number. `mcp/scripts/smoke_test.py` is its
+executable check and asserts the handshake alongside all ten tools: run it
+after changing anything on either side.
+
+The server's `instructions` string survived repackaging intact — it is
 what makes an assistant record every job it handles unprompted while never
-submitting an application. It has to survive repackaging intact.
+submitting an application, and the smoke test asserts it is still there.
+
+### Left to do
+
+- Create the GitHub repository, move `mcp/` across, delete it here.
+- Replace `<owner>` wherever the git URL appears: both READMEs,
+  USER-GUIDE section 4, `mcp/CONTRACT.md`, [[API and MCP]], and this note.
+- Drop the "prepared state" notes from [README](../README.md)'s status
+  bullet and repository map and from [[Architecture]].
 
 Sources: [deployment guide](../DEPLOY.md), [Compose](../docker-compose.yml),
 [production overlay](../docker-compose.prod.yml), [MCP
-package](../mcp/pyproject.toml), [MCP settings](../mcp/athena_mcp/config.py).
+package](../mcp/pyproject.toml), [MCP contract](../mcp/CONTRACT.md).
