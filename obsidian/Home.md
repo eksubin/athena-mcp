@@ -9,6 +9,7 @@ Athena is an invite-only job-hunt platform with a web app, FastAPI API, MCP tool
 - [[Local Setup]] — configuration and first boot
 - [[Data and Authentication]] — storage and permissions
 - [[Invites and Administration]] — closed registration, roles, admin panel
+- [[Google Sign-in]] — OAuth setup, the two callbacks, moving to a domain
 - [[API and MCP]] — endpoints and agent connection
 - [[Workflows]] — job search, applications, ingestion
 - [[Operations]] — deployment, checks, troubleshooting

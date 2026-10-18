@@ -8,7 +8,7 @@ Use Docker and Docker Compose for the full stack. Individual Python services req
 2. Generate POSTGRES_PASSWORD and JWT_SECRET.
 3. Follow the [README](../README.md) JWT script to derive ANON_KEY and SERVICE_ROLE_KEY.
 4. Set SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY to the matching keys, and SUPABASE_JWT_SECRET to JWT_SECRET.
-5. Set GOOGLE_CLIENT_ID and GOOGLE_SECRET. Register http://localhost:8001/auth/v1/callback as Google's authorized redirect URI.
+5. Set GOOGLE_CLIENT_ID and GOOGLE_SECRET. Register http://localhost:8001/auth/v1/callback — GoTrue's callback, not the web app's — as Google's authorized redirect URI. See [[Google Sign-in]].
 
 Start from the project root:
 

@@ -1,6 +1,6 @@
 # Operations
 
-[[Home]] · [[Architecture]] · [[Local Setup]]
+[[Home]] · [[Architecture]] · [[Local Setup]] · [[Google Sign-in]]
 
 ## Deployment
 
@@ -30,7 +30,8 @@ Run uv run pytest separately in backend and worker. Existing tests cover scoring
 | --- | --- |
 | Server-rendered API calls fail | API_INTERNAL_URL must use Docker service address, not browser localhost |
 | Browser cannot reach services | Public URLs must be browser-reachable; rebuild public build arguments |
-| Wrong OAuth return address | PUBLIC_SITE_URL, GoTrue allow list, Google gateway callback |
+| Wrong OAuth return address | PUBLIC_SITE_URL, GoTrue allow list, Google gateway callback; see [[Google Sign-in]] |
+| "Google sign-in is unavailable" | GOOGLE_CLIENT_ID/GOOGLE_SECRET unset; /authorize answers 400 |
 | JWT rejected | Matching signing secret and derived keys; self-hosted sessions use HS256 |
 | Missing-row lookup crashes | maybe_single().execute() can return None outright |
 | Sign-up refused as a server error | Address has no live invite; GoTrue cannot report the reason |
