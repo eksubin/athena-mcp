@@ -226,6 +226,12 @@ someone in** (every member gets three invites by default) or from
 `/admin` panel manages roles, invite allowances and access; withdrawing
 access suspends the account without deleting any of its data.
 
+## Using it
+
+[USER-GUIDE.md](USER-GUIDE.md) is written for the people who will actually
+use the thing: getting in, setting up a profile, the pipeline, connecting an
+assistant, the shared world, invites, and what the administration panel does.
+
 ## Verification
 
 With the local Docker stack running, run the disposable-account integration
