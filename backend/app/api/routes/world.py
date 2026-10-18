@@ -17,7 +17,7 @@ def list_plots(user: AuthedUser = Depends(get_current_user)) -> list[dict]:
 
     profiles = (
         user.client.table("public_profiles")
-        .select("id,username,avatar_seed")
+        .select("id,username,avatar_seed,avatar")
         .in_("id", user_ids)
         .execute()
         .data
@@ -30,6 +30,7 @@ def list_plots(user: AuthedUser = Depends(get_current_user)) -> list[dict]:
             "origin_y": p["origin_y"],
             "username": by_id[p["user_id"]]["username"],
             "avatar_seed": by_id[p["user_id"]]["avatar_seed"],
+            "avatar": by_id[p["user_id"]]["avatar"],
         }
         for p in plots
         if p["user_id"] in by_id

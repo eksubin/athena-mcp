@@ -5,7 +5,7 @@ import pytest
 
 from postgrest.exceptions import APIError
 
-from app.api.deps import _ensure_profile_and_plot, _profile_exists
+from app.api.deps import _ensure_profile_and_plot, _profile_row
 from app.services.world import allocate_plot
 
 
@@ -84,7 +84,7 @@ def test_new_session_clock_race_retries_read(monkeypatch):
     client = MagicMock()
     execute = client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute
     execute.side_effect = [APIError({'code': 'PGRST303', 'message': 'JWT issued at future'}), SimpleNamespace(data={'id': 'user'})]
-    assert _profile_exists('user', client)
+    assert _profile_row('user', client) == {'id': 'user'}
     assert execute.call_count == 2
     sleep.assert_called_once_with(0.5)
 
@@ -96,5 +96,5 @@ def test_session_retry_is_bounded_and_does_not_hide_other_errors(monkeypatch, me
     execute = client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute
     execute.side_effect = APIError({'code': 'PGRST303', 'message': message})
     with pytest.raises(APIError):
-        _profile_exists('user', client)
+        _profile_row('user', client)
     assert execute.call_count == attempts

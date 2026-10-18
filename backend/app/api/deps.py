@@ -20,9 +20,14 @@ bearer_scheme = HTTPBearer()
 
 
 class AuthedUser:
-    def __init__(self, user_id: str, client: Client):
+    def __init__(self, user_id: str, client: Client, role: str = "member"):
         self.user_id = user_id
         self.client = client
+        self.role = role
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
 
 
 def _authenticate(raw_token: str) -> tuple[str, str]:
@@ -46,15 +51,25 @@ def _authenticate(raw_token: str) -> tuple[str, str]:
     return user_id, mint_impersonation_jwt(user_id)
 
 
-def _profile_exists(user_id: str, client: Client) -> bool:
+def _profile_row(user_id: str, client: Client) -> dict | None:
+    """The caller's own profile, or None if it hasn't been created yet.
+
+    Selects the access columns too, so the one read that already happens
+    on every request also answers "is this account still allowed in, and
+    is it an admin" — see get_current_user.
+    """
     # maybe_single().execute() returns None outright (not a response with
     # .data = None) when zero rows match — not an APIResponse in that case.
     for attempt in range(3):
         try:
-            return (
-                client.table("profiles").select("id").eq("id", user_id).maybe_single().execute()
-                is not None
+            result = (
+                client.table("profiles")
+                .select("id,role,disabled_at")
+                .eq("id", user_id)
+                .maybe_single()
+                .execute()
             )
+            return result.data if result is not None else None
         except APIError as exc:
             # A freshly issued, already verified web JWT can briefly be
             # ahead of PostgREST's clock. Retry only this initial read;
@@ -62,10 +77,10 @@ def _profile_exists(user_id: str, client: Client) -> bool:
             if exc.code != "PGRST303" or exc.message != "JWT issued at future" or attempt == 2:
                 raise
             time.sleep(0.5)
-    return False  # unreachable, but keeps the return type explicit
+    return None  # unreachable, but keeps the return type explicit
 
 
-def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
+def _ensure_profile_and_plot(user_id: str, client: Client) -> dict:
     """Lazily creates the profile + world plot on a user's first
     authenticated request, rather than relying on a database trigger —
     keeps the plot-allocation math in one place (Python) instead of
@@ -81,24 +96,28 @@ def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
     profile exists either way) — so every conflict re-checks by id before
     deciding which it was, instead of assuming it's always the former.
     """
-    created = _profile_exists(user_id, client)
+    profile = _profile_row(user_id, client)
     for _ in range(5):
-        if created:
+        if profile is not None:
             break
         try:
+            # `role`, `disabled_at` and `invite_limit` are deliberately not
+            # sent: this insert runs with the user's own JWT, so the
+            # database stamps those from the invite that admitted the
+            # account (see supabase/migrations/0002_invites_and_admin.sql).
             client.table("profiles").insert(
                 {"id": user_id, "username": generate_username()}
             ).execute()
-            created = True
+            profile = _profile_row(user_id, client)
             break
         except APIError as exc:
             if exc.code != "23505":
                 raise
-            if _profile_exists(user_id, client):
-                created = True
+            profile = _profile_row(user_id, client)
+            if profile is not None:
                 break
             continue  # a real username collision — retry with a new one
-    if not created:
+    if profile is None:
         raise RuntimeError("could not allocate a unique username after 5 attempts")
 
     # Profile creation can succeed while plot creation fails. Always repair
@@ -109,7 +128,7 @@ def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
         if client.table("world_plots").select("user_id").eq(
             "user_id", user_id
         ).maybe_single().execute() is not None:
-            return
+            return profile
         n = client.table("world_plots").select("user_id", count="exact").execute().count or 0
         while True:
             origin_x, origin_y = allocate_plot(n)
@@ -123,7 +142,7 @@ def _ensure_profile_and_plot(user_id: str, client: Client) -> None:
             client.table("world_plots").insert(
                 {"user_id": user_id, "origin_x": origin_x, "origin_y": origin_y}
             ).execute()
-            return
+            return profile
         except APIError as exc:
             if exc.code != "23505":
                 raise
@@ -135,5 +154,29 @@ def get_current_user(
 ) -> AuthedUser:
     user_id, effective_jwt = _authenticate(credentials.credentials)
     client = user_client(effective_jwt)
-    _ensure_profile_and_plot(user_id, client)
-    return AuthedUser(user_id=user_id, client=client)
+    profile = _ensure_profile_and_plot(user_id, client)
+
+    # Athena is invite-only, and that has to hold for sessions that already
+    # exist, not just for signup: revoking someone's access suspends their
+    # profile, and the database gate can only refuse *new* accounts. A
+    # suspended account keeps a valid GoTrue session (and valid personal
+    # access tokens) until it expires, so the check belongs here, on every
+    # request, rather than at the door.
+    if profile.get("disabled_at"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "This account's access to Athena has been withdrawn.",
+        )
+    return AuthedUser(user_id=user_id, client=client, role=profile.get("role") or "member")
+
+
+def get_admin_user(user: AuthedUser = Depends(get_current_user)) -> AuthedUser:
+    """Gate for the admin panel's endpoints.
+
+    The role lives on the profile and is only writable by `service_role`
+    (trigger-enforced, see the migration), so a member cannot promote
+    itself by calling PostgREST directly with its own session JWT.
+    """
+    if not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Administrator access required")
+    return user

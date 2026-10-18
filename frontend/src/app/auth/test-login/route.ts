@@ -21,7 +21,17 @@ export async function POST(request: Request) {
       : await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: signInMessage(error.message) }, { status: 400 });
   }
   return NextResponse.json({ ok: true });
+}
+
+// The invite gate is a database trigger, so GoTrue reports a refused
+// sign-up as a generic save failure. Registration being closed, that is
+// what it almost always means here — say so instead of passing on an
+// internal-sounding error.
+function signInMessage(message: string) {
+  if (/database error (saving|creating) new user/i.test(message))
+    return "Athena is invite-only. This address hasn’t been invited yet.";
+  return message;
 }

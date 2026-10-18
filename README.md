@@ -1,8 +1,8 @@
 # Athena
 
-A job-hunt platform Claude can talk to cheaply: FastAPI + a self-hosted
-Supabase stack, a thin MCP layer on top of it, a web app, and a shared
-world that grows as you apply. Full design: see the
+An invite-only job-hunt platform Claude can talk to cheaply: FastAPI + a
+self-hosted Supabase stack, a thin MCP layer on top of it, a web app, and
+a shared world that grows as you apply. Full design: see the
 [Athena Technical Spec](https://claude.ai/code/artifact/8e673e85-7d34-4417-a377-5fbcc2c6b790).
 
 Builds on [eksubin/job-apply-plugin](https://github.com/eksubin/job-apply-plugin)
@@ -154,8 +154,18 @@ This brings up seven services: the self-hosted Supabase stack
 
 ```sh
 docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/migrations/0001_init.sql
+docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/migrations/0002_invites_and_admin.sql
+docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/migrations/0003_profile_identity.sql
 docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/seed.sql
 ```
+
+**Before applying `0002`, set the first administrator's address in it.**
+Athena is invite-only: an account can only be created for an address that
+somebody already inside has invited, enforced by a trigger on `auth.users`
+rather than in the API, so it covers Google sign-in and the local test
+login alike. That migration grandfathers any accounts that already exist
+and leaves one pending **admin** invite — the only way into `/admin` on a
+fresh deployment. Everything after that is managed from the panel.
 
 `PUBLIC_API_URL`/`PUBLIC_SUPABASE_URL`/`PUBLIC_SITE_URL` in `.env` should
 be real public URLs once this isn't just local — the browser calls them
@@ -175,8 +185,9 @@ not committed) is where a local-only fix lives if you need one — see
 
 ### 4. Sign in and connect the MCP server
 
-Open `http://localhost:3000`, sign in with Google, go to **Settings**, and
-create a personal access token. Then:
+Open `http://localhost:3000` and sign in with Google using the address you
+set as the first administrator. Go to **Settings** and create a personal
+access token. Then:
 
 ```sh
 cd mcp
@@ -201,6 +212,20 @@ For Codex setup and a BrowserOS application walkthrough, see
 [mcp/README.md](mcp/README.md). Athena prepares and tracks applications;
 only the employer's browser form actually submits one.
 
+### 5. Make the profile yours
+
+**My profile → How you appear** is where the username and avatar other
+people see in the shared world are chosen. Neither is your real name;
+the resume, answers and applications behind them stay private.
+
+### 6. Invite other people
+
+Athena never emails anyone. Invite an address from **My profile → Invite
+someone in** (every member gets three invites by default) or from
+**Administration → Invites**, then send that person the link yourself. The
+`/admin` panel manages roles, invite allowances and access; withdrawing
+access suspends the account without deleting any of its data.
+
 ## Verification
 
 With the local Docker stack running, run the disposable-account integration
@@ -212,9 +237,11 @@ mcp/.venv/Scripts/python.exe scripts/mcp_smoke_test.py
 ```
 
 The first checks the API, resume parsing, world growth, token revocation,
-and authenticated web pages. The second checks all nine MCP tools over
-stdio (run `uv sync` in `mcp/` first). Both delete their test accounts and
-jobs, and the first removes its uploaded file.
+one-call job tracking, and authenticated web pages. The second checks all
+ten MCP tools over stdio (run `uv sync` in `mcp/` first). Both allowlist
+their disposable address before creating it — registration is closed — and
+both delete their test accounts, invites and jobs afterwards; the first
+also removes its uploaded file.
 
 Run `uv run pytest` in `backend/` and `worker/`, and `npm run lint` plus
 `npm run build` in `frontend/`. On Windows, if Turbopack exits while
@@ -234,7 +261,7 @@ supabase/seed.sql        sample jobs for local dev
 supabase/docker/         db init SQL for the self-hosted stack (roles, jwt)
 supabase/gateway/        Caddyfile routing /auth/v1 + /rest/v1 to auth/rest
 backend/                 FastAPI app (Python, uv)
-frontend/                Next.js app (dashboard, profile, settings, world)
+frontend/                Next.js app (dashboard, profile, settings, world, admin)
 worker/                  HN ingestion loop (Python, uv)
 mcp/                     MCP server (Python, uv) — runs locally, not in docker-compose
 docker-compose.yml       db + auth + rest + gateway + api + web + worker, local dev

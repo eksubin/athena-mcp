@@ -72,8 +72,17 @@ Once `db` is healthy, apply the schema the same way as local dev:
 
 ```sh
 docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/migrations/0001_init.sql
+docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/migrations/0002_invites_and_admin.sql
+docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/migrations/0003_profile_identity.sql
 docker exec -i athena-db-1 psql -U postgres -d postgres < supabase/seed.sql
 ```
+
+**Set the first administrator's address in `0002_invites_and_admin.sql`
+before applying it.** Athena is invite-only — accounts can only be created
+for addresses somebody inside has invited — and that migration leaves one
+pending admin invite, which is the only way into `/admin` on a fresh
+deployment. Signing in on that address makes you an administrator; roles,
+invite allowances and access are managed from the panel after that.
 
 ## 5. After it's up
 

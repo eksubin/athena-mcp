@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Athena — A calmer job search",
   description:
-    "One thoughtful space for your opportunities, resume, and application progress. Find your next chapter with Athena.",
+    "An invite-only space for your opportunities, resume, and application progress. Find your next chapter with Athena.",
 };
 
 export default function LandingPage() {
@@ -27,6 +27,9 @@ export default function LandingPage() {
       <main>
         <section className="landing-hero">
           <p className="eyebrow">A little clarity for your next big step</p>
+          <p className="landing-badge">
+            <Icon name="mail" size={13} /> Invite-only
+          </p>
           <h1>
             Your next chapter.
             <br />
@@ -39,12 +42,16 @@ export default function LandingPage() {
           </p>
           <div className="landing-actions">
             <Link href="/login" className="button button-primary">
-              Find your next with Athena <Icon name="arrow" size={17} />
+              Sign in to Athena <Icon name="arrow" size={17} />
             </Link>
             <a href="#how-it-works" className="button button-quiet">
               Take a look around
             </a>
           </div>
+          <p className="landing-reassurance">
+            <Icon name="mail" size={14} /> Athena is invite-only — you’ll need
+            an invite from someone already here.
+          </p>
           <p className="landing-reassurance">
             <Icon name="shield" size={14} /> Your search is personal. Your
             details stay private.
@@ -132,14 +139,18 @@ export default function LandingPage() {
         </section>
         <section className="landing-closing">
           <h2>Make space for your next.</h2>
+          <p>
+            Athena is invite-only. If someone here has invited you, sign in
+            with that address and your workspace is waiting.
+          </p>
           <Link className="button button-primary" href="/login">
-            Get started <Icon name="arrow" size={16} />
+            Sign in <Icon name="arrow" size={16} />
           </Link>
         </section>
       </main>
       <footer className="landing-footer">
         <Brand />
-        <p>A thoughtful space for your next chapter.</p>
+        <p>A thoughtful, invite-only space for your next chapter.</p>
         <Link href="/login">
           Your workspace <Icon name="arrow" size={14} />
         </Link>

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Brand, Icon, type IconName } from "@/components/ui";
+import Avatar from "@/components/avatar";
+import type { AvatarName } from "@/lib/types";
 
 const LINKS: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Overview", icon: "grid" },
@@ -11,8 +13,23 @@ const LINKS: { href: string; label: string; icon: IconName }[] = [
   { href: "/world", label: "My world", icon: "world" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
+// Hiding this from members is presentation only — /admin redirects and
+// every /admin endpoint refuses a non-admin regardless of the menu.
+const ADMIN_LINK: { href: string; label: string; icon: IconName } = {
+  href: "/admin",
+  label: "Administration",
+  icon: "shield",
+};
 
-export default function Nav({ username }: { username: string }) {
+export default function Nav({
+  username,
+  avatar,
+  isAdmin = false,
+}: {
+  username: string;
+  avatar: AvatarName;
+  isAdmin?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   async function signOut() {
@@ -31,7 +48,7 @@ export default function Nav({ username }: { username: string }) {
       </Link>
       <p className="nav-label">Workspace</p>
       <nav className="main-nav">
-        {LINKS.map((link) => (
+        {[...LINKS, ...(isAdmin ? [ADMIN_LINK] : [])].map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -44,19 +61,11 @@ export default function Nav({ username }: { username: string }) {
         ))}
       </nav>
       <div className="sidebar-bottom">
-        <div className="sidebar-note">
-          <Icon name="spark" />
-          <h3>Small steps. Real progress.</h3>
-          <p>Every application adds something to your world.</p>
-          <Link href="/world">
-            See your world <Icon name="arrow" size={14} />
-          </Link>
-        </div>
         <div className="account">
-          <span className="avatar">{username.slice(0, 2).toUpperCase()}</span>
+          <Avatar name={avatar} size={34} />
           <div className="account-info">
             <strong title={username}>{username}</strong>
-            <span>Personal workspace</span>
+            <span>{isAdmin ? "Administrator" : "Personal workspace"}</span>
           </div>
           <button
             onClick={signOut}

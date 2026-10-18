@@ -1,10 +1,13 @@
 from pydantic import BaseModel
 
+from app.schemas.profile import Avatar
+
 
 class PlotOut(BaseModel):
     user_id: str
     username: str
     avatar_seed: str
+    avatar: Avatar = "fox"
     origin_x: int
     origin_y: int
 

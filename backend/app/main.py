@@ -1,7 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import answers, applications, health, jobs, profile, resumes, tokens, world
+from app.api.routes import (
+    admin,
+    answers,
+    applications,
+    health,
+    invites,
+    jobs,
+    profile,
+    resumes,
+    tokens,
+    world,
+)
 from app.core.config import get_settings
 
 app = FastAPI(title="Athena API", version="0.1.0")
@@ -23,3 +34,5 @@ app.include_router(jobs.router)
 app.include_router(applications.router)
 app.include_router(world.router)
 app.include_router(tokens.router)
+app.include_router(invites.router)
+app.include_router(admin.router)

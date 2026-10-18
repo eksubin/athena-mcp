@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Brand, Icon } from "@/components/ui";
 
@@ -63,7 +64,10 @@ export default function LoginPage() {
             </div>
             <div className="journey-footer">
               <Icon name="shield" size={16} />
-              <span>Your search is personal. Your details stay private.</span>
+              <span>
+                Invite-only. Your search is personal, your details stay
+                private.
+              </span>
             </div>
           </div>
         </div>
@@ -79,6 +83,9 @@ export default function LoginPage() {
           <p className="eyebrow">Welcome to your workspace</p>
           <h2>Let’s find your next.</h2>
           <p>Sign in to pick up your search and keep moving forward.</p>
+          <Suspense fallback={null}>
+            <SignInNotice />
+          </Suspense>
           <button
             className="button button-primary button-full"
             disabled={pending}
@@ -93,9 +100,11 @@ export default function LoginPage() {
             </p>
           )}
           <div className="login-privacy">
-            Your resume, answers, and applications are private.
+            Athena is invite-only — sign in with the address you were invited
+            on.
             <br />
-            Only your chosen username appears in the shared world.
+            Your resume, answers, and applications stay private. Only your
+            chosen username appears in the shared world.
           </div>
           {TEST_LOGIN_ENABLED && <TestLogin />}
           <Link
@@ -108,6 +117,32 @@ export default function LoginPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+/** What the door says when something went wrong on the way in.
+ *
+ * GoTrue cannot tell the browser *why* a sign-up was refused — the invite
+ * gate lives in the database, so a refused account surfaces as a generic
+ * server error (see supabase/migrations/0002_invites_and_admin.sql). The
+ * honest reading of that error, for an app where registration is closed,
+ * is "this address has not been invited", so that is what it says — while
+ * `access` (an account whose access was withdrawn) and `auth` (a genuine
+ * sign-in failure) stay distinct.
+ */
+function SignInNotice() {
+  const reason = useSearchParams().get("error");
+  if (!reason) return null;
+  const message =
+    reason === "invite"
+      ? "Athena is invite-only, and this address hasn’t been invited yet. Ask whoever invited you to add this exact address."
+      : reason === "access"
+        ? "This account’s access to Athena has been withdrawn. Contact an administrator if you think that’s a mistake."
+        : "We couldn’t complete that sign-in. Please try again.";
+  return (
+    <p className="form-error" role="alert" style={{ margin: "0 0 18px" }}>
+      {message}
+    </p>
   );
 }
 

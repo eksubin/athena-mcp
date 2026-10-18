@@ -18,11 +18,28 @@ export default async function AppLayout({
   // Also doubles as the lazy profile/plot creation trigger for a
   // brand-new user's first visit — the backend creates both on first
   // authenticated request.
-  const profile = await apiFetch<Profile>("/profile", session.access_token);
+  //
+  // It is also where withdrawn access surfaces: Athena is invite-only, and
+  // an account whose access an administrator took away still holds a valid
+  // session until it expires, so the API refuses it with a 403 rather than
+  // the session simply being gone. Showing the workspace shell around that
+  // error would be worse than sending them back to the door.
+  let profile: Profile;
+  try {
+    profile = await apiFetch<Profile>("/profile", session.access_token);
+  } catch (caught) {
+    if (caught instanceof Error && caught.message.includes("(403)"))
+      redirect("/login?error=access");
+    throw caught;
+  }
 
   return (
     <div className="app-shell">
-      <Nav username={profile.username} />
+      <Nav
+        username={profile.username}
+        avatar={profile.avatar}
+        isAdmin={profile.role === "admin"}
+      />
       <div className="workspace">
         <header className="workspace-topbar">
           <div className="breadcrumb">

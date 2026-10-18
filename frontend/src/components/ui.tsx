@@ -17,7 +17,11 @@ export type IconName =
   | "message"
   | "location"
   | "shield"
-  | "list";
+  | "list"
+  | "link"
+  | "mail"
+  | "users"
+  | "ban";
 const paths: Record<IconName, ReactNode> = {
   grid: (
     <>
@@ -102,6 +106,30 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z" />
       <path d="m8 12 3 3 5-6" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M14 7h3a5 5 0 0 1 0 10h-3M10 17H7A5 5 0 0 1 7 7h3M8 12h8" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <path d="m4 8 8 5 8-5" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2 20v-1.5A6.5 6.5 0 0 1 8.5 12h1A6.5 6.5 0 0 1 16 18.5V20" />
+      <path d="M16 5.5a3.5 3.5 0 0 1 0 7M18 20v-1.5a6.5 6.5 0 0 0-2-4.7" />
+    </>
+  ),
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m6 18 12-12" />
     </>
   ),
   list: (

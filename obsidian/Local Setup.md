@@ -28,7 +28,16 @@ Optionally load development sample jobs:
 Get-Content -Raw supabase/seed.sql | docker compose exec -T db psql -U postgres -d postgres -v ON_ERROR_STOP=1
 ```
 
-The initial schema is not an idempotent migration runner; do not repeatedly apply it to an initialized database.
+Then apply `supabase/migrations/0002_invites_and_admin.sql` and
+`supabase/migrations/0003_profile_identity.sql` the same way, in that order.
+
+Set the first administrator's address in `0002_invites_and_admin.sql` before
+applying it: Athena is invite-only, and the pending admin invite that file
+leaves behind is the only way into /admin on a fresh deployment. See
+[[Invites and Administration]].
+
+None of these files is an idempotent migration runner; do not repeatedly
+apply them to an initialized database.
 
 Open http://localhost:3000. API health: http://localhost:8000/health. Interactive API reference: http://localhost:8000/docs.
 

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
-import type { Application, JobSummary } from "@/lib/types";
+import type { Application } from "@/lib/types";
 import { Icon, PageHeading } from "@/components/ui";
 import StatusBoard from "./status-board";
 
@@ -12,16 +12,13 @@ export default async function DashboardPage() {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) redirect("/login");
+  // Each application arrives with its listing embedded, so this is one
+  // request however long the pipeline gets — it used to be one more per
+  // tracked job just to read a title.
   const applications = await apiFetch<Application[]>(
     "/applications",
     session.access_token,
   );
-  const jobs = await Promise.all(
-    [...new Set(applications.map((a) => a.job_id))].map((id) =>
-      apiFetch<JobSummary>(`/jobs/${id}`, session.access_token),
-    ),
-  );
-  const jobById = Object.fromEntries(jobs.map((j) => [j.id, j]));
   return (
     <>
       <PageHeading
@@ -35,7 +32,7 @@ export default async function DashboardPage() {
           </Link>
         }
       />
-      <StatusBoard initialApplications={applications} jobById={jobById} />
+      <StatusBoard initialApplications={applications} />
       <div className="dashboard-bottom">
         <section className="card action-card">
           <span className="icon-tile">

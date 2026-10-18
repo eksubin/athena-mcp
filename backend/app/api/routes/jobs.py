@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 
 from app.api.deps import AuthedUser, get_current_user
-from app.core.supabase import service_client
 from app.schemas.job import JobCreate, JobDetail, JobSummary
+from app.services.jobs import upsert_jobs
 from app.services.scoring import score_job
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -59,23 +59,11 @@ def import_jobs(
     """Bulk-import listings an agent collected elsewhere (e.g. a saved-jobs
     page the worker can't reach, since it has no browser).
 
-    Writes through the service client, not `user.client`: `jobs` is shared
-    across all users and its RLS grants `authenticated` select only, so a
-    user-scoped write would be rejected by policy. The caller still has to
-    authenticate — `get_current_user` gates the route — but the row it
-    writes belongs to everyone, exactly like the worker's own ingest.
+    To record a listing *and* the user's position on it, use
+    POST /applications/track instead — that is the single call an agent
+    working through a job makes.
     """
-    if not jobs:
-        return []
-
     # Browser imports often include just the observed title and URL. Do not
     # erase descriptions or salary data already collected by another source
     # when optional fields were omitted from a subsequent import.
-    rows = [j.model_dump(mode="json", exclude_unset=True) for j in jobs]
-    written = (
-        service_client()
-        .table("jobs")
-        .upsert(rows, on_conflict="source,external_id")
-        .execute()
-    ).data
-    return written
+    return upsert_jobs([j.model_dump(mode="json", exclude_unset=True) for j in jobs])

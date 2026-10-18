@@ -12,6 +12,36 @@ interface Props {
   currentUserId: string;
 }
 
+// These mirror backend/app/services/world.py. The backend decides where a
+// plot sits and where each structure lands inside it; this file only has
+// to draw the parcel those numbers imply, so the two must agree.
+const PLOT_SPACING = 40; // distance between neighbouring plot origins
+const STRUCTURE_SPACING = 4;
+const STRUCTURES_PER_ROW = 6;
+
+// The lane of untouched ground left between neighbouring parcels, so two
+// boundaries never share an edge and it stays obvious where one person's
+// land ends and the next begins.
+const PLOT_MARGIN = 1.5;
+const PARCEL = PLOT_SPACING - PLOT_MARGIN * 2;
+const BORDER = 1.1;
+
+// structure_position() fills rightwards and upwards *from* the origin
+// rather than around it, so the parcel is centred on that block of
+// structures, not on the origin itself. Centred on the origin, a plot's
+// own buildings would sit in its corner and spill over the edge.
+const PARCEL_OFFSET_X = ((STRUCTURES_PER_ROW - 1) * STRUCTURE_SPACING) / 2;
+const PARCEL_OFFSET_Z = -PARCEL_OFFSET_X;
+
+// Corner posts, inset so they read as markers standing on the land.
+const POST = PARCEL / 2 - 1.4;
+const CORNERS: [number, number][] = [
+  [-POST, -POST],
+  [POST, -POST],
+  [-POST, POST],
+  [POST, POST],
+];
+
 export default function WorldScene({
   initialPlots,
   initialStructures,
@@ -41,14 +71,20 @@ export default function WorldScene({
   const groundSize = useMemo(() => {
     const maxCoord = plots.reduce(
       (max, p) => Math.max(max, Math.abs(p.origin_x), Math.abs(p.origin_y)),
-      40,
+      PLOT_SPACING,
     );
-    return (maxCoord + 40) * 2;
+    // + a full plot so the outermost parcel has ground under all of it,
+    // including the half that sits past its own origin.
+    return (maxCoord + PLOT_SPACING * 1.5) * 2;
   }, [plots]);
 
   const focus = useMemo<[number, number, number]>(() => {
     const ownPlot = plots.find((plot) => plot.user_id === currentUserId);
-    return [ownPlot?.origin_x ?? 0, 0, ownPlot?.origin_y ?? 0];
+    return [
+      (ownPlot?.origin_x ?? 0) + PARCEL_OFFSET_X,
+      0,
+      (ownPlot?.origin_y ?? 0) + PARCEL_OFFSET_Z,
+    ];
   }, [plots, currentUserId]);
 
   return (
@@ -62,7 +98,12 @@ export default function WorldScene({
         <planeGeometry args={[groundSize, groundSize]} />
         <meshStandardMaterial color="#ECEFF5" />
       </mesh>
-      <gridHelper args={[groundSize, groundSize / 4, "#D3D9E5", "#E1E5EE"]} />
+      {/* One line per plot, so the only grid on the ground is the one the
+          parcels actually sit on. */}
+      <gridHelper
+        args={[groundSize, groundSize / PLOT_SPACING, "#DDE2EC", "#E5E9F1"]}
+        position={[PARCEL_OFFSET_X, 0, PARCEL_OFFSET_Z]}
+      />
 
       {plots.map((plot) => (
         <PlotMarker
@@ -85,18 +126,38 @@ export default function WorldScene({
   );
 }
 
+/** One user's land: a bordered parcel with a post at each corner.
+ *
+ * Drawn as two stacked planes rather than an outlined shape — the larger
+ * one in the border colour shows only as a frame around the smaller fill
+ * on top of it. A line primitive would be a pixel wide whatever the
+ * camera distance, and these plots are usually seen from far away. */
 function PlotMarker({ plot, isSelf }: { plot: Plot; isSelf: boolean }) {
+  const border = isSelf ? "#5B4EE8" : "#C2CAD9";
+  const fill = isSelf ? "#EFEDFD" : "#F6F8FC";
   return (
-    <group position={[plot.origin_x, 0, plot.origin_y]}>
+    <group
+      position={[
+        plot.origin_x + PARCEL_OFFSET_X,
+        0,
+        plot.origin_y + PARCEL_OFFSET_Z,
+      ]}
+    >
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <ringGeometry args={[13, 14, 32]} />
-        <meshBasicMaterial
-          color={isSelf ? "#5B4EE8" : "#A8B1C5"}
-          transparent
-          opacity={0.6}
-        />
+        <planeGeometry args={[PARCEL, PARCEL]} />
+        <meshBasicMaterial color={border} transparent opacity={isSelf ? 0.9 : 0.7} />
       </mesh>
-      <Html center distanceFactor={40} position={[0, 0.5, -16]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
+        <planeGeometry args={[PARCEL - BORDER * 2, PARCEL - BORDER * 2]} />
+        <meshStandardMaterial color={fill} />
+      </mesh>
+      {CORNERS.map(([x, z]) => (
+        <mesh key={`${x},${z}`} position={[x, 0.45, z]} castShadow>
+          <cylinderGeometry args={[0.22, 0.26, 0.9, 6]} />
+          <meshStandardMaterial color={isSelf ? "#5B4EE8" : "#AEB7C8"} />
+        </mesh>
+      ))}
+      <Html center distanceFactor={40} position={[0, 0.6, PARCEL / 2 + 1.6]}>
         <div
           className={`rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap shadow-sm ${
             isSelf ? "bg-[#5b4ee8] text-white" : "bg-white/90 text-slate-600"
