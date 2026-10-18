@@ -9,6 +9,9 @@ import { createClient } from "@/lib/supabase/server";
 // inconsistently set, which is why the post-login redirect kept bouncing
 // back to /login — the middleware's session check never saw a session.
 export async function POST(request: Request) {
+  if (process.env.NEXT_PUBLIC_ENABLE_TEST_LOGIN !== "true") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const { email, password, action } = await request.json();
   if (typeof email !== "string" || typeof password !== "string") {
     return NextResponse.json({ error: "email and password are required" }, { status: 400 });

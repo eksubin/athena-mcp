@@ -74,7 +74,7 @@ Environment variables win over the file.
 The server checks two things before offering any tool, and says what's
 wrong in plain English rather than leaving you to guess:
 
-- **"no Athena token"** — `ATHENA_TOKEN` never reached the process.
+- **"ATHENA_TOKEN is not set"** — the token never reached the process.
   Check it's inside the `env` block above and not somewhere your client
   ignores.
 - **"rejected this token"** — the token was revoked, belongs to a

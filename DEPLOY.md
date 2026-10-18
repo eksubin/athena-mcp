@@ -26,10 +26,8 @@ the app domain — GoTrue's own callback, not the frontend's). The
 `localhost:8001` one from local dev can stay too if you still develop
 locally against the same Google client.
 
-Also update `.env`'s `API_EXTERNAL_URL` to
-`https://db.yourdomain.com/auth/v1` and `GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI`
-derives from it automatically (see docker-compose.yml) — nothing else to
-change there.
+The production overlay derives the authentication URLs and Google callback
+from `ATHENA_DB_DOMAIN`, and the app callback from `ATHENA_DOMAIN`.
 
 ## 3. Configure the server
 
@@ -52,8 +50,11 @@ ATHENA_API_DOMAIN=api.yourdomain.com
 ATHENA_DB_DOMAIN=db.yourdomain.com
 ```
 
-`CORS_ORIGINS` also needs to include the real domain:
-`CORS_ORIGINS=["https://athena.yourdomain.com"]`.
+The production overlay requires all three `ATHENA_*_DOMAIN` values and
+derives frontend build URLs, authentication redirects, and API CORS from
+them. It overrides local development URLs, disables the test-login form
+and endpoint, and disables email/password authentication. Rebuild the web
+image after changing domains because browser URLs are embedded at build time.
 
 ## 4. Bring it up
 

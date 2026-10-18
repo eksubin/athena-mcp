@@ -6,15 +6,17 @@ services:
   api:
     ports: !reset []
     restart: always
+    environment:
+      CORS_ORIGINS: '["https://${ATHENA_DOMAIN:?Set ATHENA_DOMAIN}"]'
 
   web:
     ports: !reset []
     restart: always
     build:
       args:
-        NEXT_PUBLIC_API_URL: https://${ATHENA_API_DOMAIN}
-        NEXT_PUBLIC_SUPABASE_URL: https://${ATHENA_DB_DOMAIN}
-        NEXT_PUBLIC_SITE_URL: https://${ATHENA_DOMAIN}
+        NEXT_PUBLIC_API_URL: https://${ATHENA_API_DOMAIN:?Set ATHENA_API_DOMAIN}
+        NEXT_PUBLIC_SUPABASE_URL: https://${ATHENA_DB_DOMAIN:?Set ATHENA_DB_DOMAIN}
+        NEXT_PUBLIC_SITE_URL: https://${ATHENA_DOMAIN:?Set ATHENA_DOMAIN}
         # docker-compose merges build.args maps rather than replacing them,
         # so the base file's default has to be overridden explicitly here
         # — leaving self-serve signup reachable on a real deploy isn't a
@@ -27,6 +29,11 @@ services:
   auth:
     restart: always
     environment:
+      API_EXTERNAL_URL: https://${ATHENA_DB_DOMAIN:?Set ATHENA_DB_DOMAIN}/auth/v1
+      GOTRUE_SITE_URL: https://${ATHENA_DOMAIN:?Set ATHENA_DOMAIN}
+      GOTRUE_URI_ALLOW_LIST: https://${ATHENA_DOMAIN:?Set ATHENA_DOMAIN}/auth/callback
+      GOTRUE_JWT_ISSUER: https://${ATHENA_DB_DOMAIN:?Set ATHENA_DB_DOMAIN}/auth/v1
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: https://${ATHENA_DB_DOMAIN:?Set ATHENA_DB_DOMAIN}/auth/v1/callback
       # Same reasoning as NEXT_PUBLIC_ENABLE_TEST_LOGIN above — the test
       # login form is pointless to disable if the backend still accepts
       # arbitrary email/password signups directly.
