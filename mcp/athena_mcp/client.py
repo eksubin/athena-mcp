@@ -17,6 +17,14 @@ class AthenaClient:
             timeout=20.0,
         )
 
+    def health(self) -> dict:
+        """Unauthenticated liveness plus the MCP contract numbers this
+        deployment advertises — see athena_mcp/contract.py. Kept short:
+        it runs at startup, before the user's assistant can use anything."""
+        r = self._http.get("/health", timeout=5.0)
+        r.raise_for_status()
+        return r.json()
+
     def search_jobs(self, limit: int = 10) -> list[dict]:
         r = self._http.get("/jobs", params={"limit": limit})
         r.raise_for_status()

@@ -23,9 +23,15 @@ its free tier auto-paused the project and took the whole app down with it.
   SQL and routing config (see docker-compose.yml's `db`/`auth`/`rest`/`gateway`)
 - `backend/` — FastAPI app: profile (+ extracted resume facts), resumes,
   answers, jobs, applications, world, personal-access-token endpoints
-- `mcp/` — MCP server exposing `search_jobs`, `get_job`, `save_job`,
-  `get_queue`, `start_application`, `record_answer`, `update_status`,
-  `get_profile`, and `import_linkedin_job`
+- [athena-mcp](https://github.com/<owner>/athena-mcp) — the MCP server, in
+  its own repository: ten tools (`track_job`, `search_jobs`, `get_job`,
+  `save_job`, `get_queue`, `start_application`, `record_answer`,
+  `update_status`, `get_profile`, `import_linkedin_job`). It runs on each
+  user's own machine, not in this stack, so it installs from git with
+  `uvx` and nothing to check out. The API surface between the two repos is
+  versioned — `backend/app/core/contract.py` and that repo's `CONTRACT.md`.
+  (The `mcp/` tree here is that repository's prepared state, waiting to be
+  moved across; delete this bullet's parenthesis and the tree once it has.)
 - `frontend/` — Next.js app: public landing page, Google sign-in, an application board/list view,
   profile/resume/answer-bank editing (resumes get parsed into structured
   facts on upload), MCP token management, and a three.js render of the
@@ -173,44 +179,44 @@ directly, and they're baked into the web build at build time. For an
 actual deploy with real HTTPS, see `DEPLOY.md` instead of plain
 `docker compose up`.
 
-Without Docker: each of `backend/`, `frontend/`, `worker/`, `mcp/` is
-runnable on its own (`uv sync` + `uv run ...` for the Python ones, `npm
-install` + `npm run dev` for the frontend — each has its own
-`.env.example`).
+Without Docker: each of `backend/`, `frontend/`, `worker/` is runnable on
+its own (`uv sync` + `uv run ...` for the Python ones, `npm install` +
+`npm run dev` for the frontend — each has its own `.env.example`). The MCP
+server always runs outside the stack, wherever the assistant does.
 
 **Behind a corporate/AV TLS-inspecting proxy?** `docker compose build` may
 fail with certificate errors. `docker-compose.override.yml` (gitignored,
 not committed) is where a local-only fix lives if you need one — see
 `backend/Dockerfile.localdev` for the pattern.
 
-### 4. Sign in and connect the MCP server
+### 4. Sign in and connect an assistant
 
 Open `http://localhost:3000` and sign in with Google using the address you
 set as the first administrator. Go to **Settings** and create a personal
-access token. Then:
+access token.
 
-```sh
-cd mcp
-cp .env.example .env        # ATHENA_API_URL + the token from above
-uv sync
-```
-
-Add to Claude Code's MCP config:
+The MCP server is not part of this stack — it's a separate package,
+[athena-mcp](https://github.com/<owner>/athena-mcp), that runs on the
+machine the assistant runs on. Nothing to check out:
 
 ```json
 {
   "mcpServers": {
     "athena": {
-      "command": "uv",
-      "args": ["--directory", "mcp", "run", "athena-mcp"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+      "env": {
+        "ATHENA_API_URL": "http://localhost:8000",
+        "ATHENA_TOKEN": "athena_pat_..."
+      }
     }
   }
 }
 ```
 
-For Codex setup and a BrowserOS application walkthrough, see
-[mcp/README.md](mcp/README.md). Athena prepares and tracks applications;
-only the employer's browser form actually submits one.
+That repository's README covers Codex, the ten tools and the review-only
+walkthrough. Athena prepares and tracks applications; only the employer's
+browser form actually submits one.
 
 ### 5. Make the profile yours
 
@@ -239,15 +245,20 @@ check from PowerShell at the repository root:
 
 ```powershell
 Get-Content -Raw scripts/smoke_test.py | docker compose exec -T api python -
-mcp/.venv/Scripts/python.exe scripts/mcp_smoke_test.py
 ```
 
-The first checks the API, resume parsing, world growth, token revocation,
-one-call job tracking, and authenticated web pages. The second checks all
-ten MCP tools over stdio (run `uv sync` in `mcp/` first). Both allowlist
-their disposable address before creating it — registration is closed — and
-both delete their test accounts, invites and jobs afterwards; the first
-also removes its uploaded file.
+It checks the API, resume parsing, world growth, token revocation,
+one-call job tracking, and authenticated web pages. Registration is
+closed, so it allowlists its disposable address before creating it, and
+deletes the account, its invite, its jobs and its uploaded file
+afterwards.
+
+The other half — all ten MCP tools over stdio, against this deployment —
+lives with the client, in athena-mcp's `scripts/smoke_test.py`. It takes
+the deployment from the environment, so run it from that checkout with
+`SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_JWT_SECRET` from this `.env`
+exported. It is the executable half of the cross-repo contract: run it
+after changing anything athena-mcp calls.
 
 Run `uv run pytest` in `backend/` and `worker/`, and `npm run lint` plus
 `npm run build` in `frontend/`. On Windows, if Turbopack exits while
@@ -269,7 +280,7 @@ supabase/gateway/        Caddyfile routing /auth/v1 + /rest/v1 to auth/rest
 backend/                 FastAPI app (Python, uv)
 frontend/                Next.js app (dashboard, profile, settings, world, admin)
 worker/                  HN ingestion loop (Python, uv)
-mcp/                     MCP server (Python, uv) — runs locally, not in docker-compose
+mcp/                     prepared state of the separate athena-mcp repository — see above
 docker-compose.yml       db + auth + rest + gateway + api + web + worker, local dev
 docker-compose.prod.yml  + Caddyfile — adds automatic HTTPS, see DEPLOY.md
 DEPLOY.md                taking this to a real VPS with a real domain

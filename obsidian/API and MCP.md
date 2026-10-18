@@ -6,7 +6,7 @@ Except for /health, these route groups require authentication. Use the running A
 
 | Methods | Path | Purpose |
 | --- | --- | --- |
-| GET | /health | Basic process health |
+| GET | /health | Basic process health, plus the MCP contract numbers |
 | GET, PATCH | /profile | Profile/preferences |
 | GET | /profile/facts | Extracted facts |
 | GET, POST | /resumes | List/upload resumes |
@@ -47,19 +47,31 @@ The stdio server delegates to the backend. Search returns compact summaries; fet
 
 The server's instructions tell an agent to call `track_job` for every listing it handles, unprompted, with the status that is true at that moment — recording is bookkeeping, not an action taken on the user's behalf. `track_job` accepts the whole listing (link, title, company, location, salary range, remote and easy-apply flags, posting date, description, note) and derives the catalog key from the URL, so the same job seen through a search page, a tracking link or a bare URL stays one record. Repeat calls update rather than duplicate, and omitted fields keep whatever Athena already holds. The rule that `applied` requires visible employer confirmation is unchanged.
 
-Create a token at /settings, configure mcp/.env from its example with ATHENA_API_URL and the token, and run uv sync in mcp.
+## Installing it
 
-Example client configuration; replace the directory with this checkout's absolute mcp path:
+The MCP server is not part of this stack. It is a separate package, `athena-mcp`, in its own repository, and it runs on the machine the assistant runs on — one per user, updated whenever that user updates it. There is no checkout, no `uv sync` and no absolute path in the configuration: `uvx` fetches and runs it on demand, and the only two settings travel in the client config's `env` block.
 
 ```json
 {
   "mcpServers": {
     "athena": {
-      "command": "uv",
-      "args": ["--directory", "C:/path/to/Athena/mcp", "run", "athena-mcp"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+      "env": {
+        "ATHENA_API_URL": "https://api.athena.example.com",
+        "ATHENA_TOKEN": "athena_pat_..."
+      }
     }
   }
 }
 ```
 
-Sources: [routes](../backend/app/api/routes/), [MCP tools](../mcp/athena_mcp/server.py), [MCP environment](../mcp/.env.example).
+Create the token at /settings. A checkout of that repository can still use a root `.env` instead; environment variables win over it.
+
+## The cross-repo contract
+
+Because the two ship separately, a backend change can take tools away from a client nobody is watching. `/health` therefore advertises `mcp_contract` (the contract this deployment speaks) and `mcp_contract_min` (the oldest client it still supports), from [[Architecture|backend/app/core/contract.py]]. The client fetches it once at startup: below the minimum it refuses to start and tells the user to update; above the current it warns and continues; unreachable or unversioned, it starts quietly. The same startup check catches a rejected token.
+
+Bump `MCP_CONTRACT_VERSION` when an endpoint the MCP calls changes in a way a client could notice. Raise `MCP_CONTRACT_MIN` only to drop old clients deliberately. The list of what counts, and the integration check that exercises both sides together, live in that repository (`CONTRACT.md` and `scripts/smoke_test.py`).
+
+Sources: [routes](../backend/app/api/routes/), [contract](../backend/app/core/contract.py), [MCP tools](../mcp/athena_mcp/server.py), [MCP contract](../mcp/CONTRACT.md).

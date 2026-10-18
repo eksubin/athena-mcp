@@ -9,7 +9,7 @@ flowchart LR
  Web --> API
  Browser --> Gateway[Supabase gateway]
  Web --> Gateway
- MCP[Local stdio MCP] --> API
+ MCP[athena-mcp, separate repo, on the user machine] --> API
  API --> Gateway
  Worker[HN worker] --> Gateway
  Gateway --> Auth[GoTrue]
@@ -22,19 +22,22 @@ flowchart LR
 | Path | Responsibility |
 | --- | --- |
 | backend/app/api/routes/ | HTTP endpoints |
-| backend/app/core/ | Settings, auth, Supabase clients |
+| backend/app/core/ | Settings, auth, Supabase clients, the MCP API contract |
 | backend/app/api/deps.py | User resolution and first profile/plot creation |
 | backend/app/services/ | Scoring, resume parsing, identity, world placement |
 | backend/app/schemas/ | Request/response models |
 | frontend/src/app/ | Next.js pages and auth handlers |
 | frontend/src/lib/ | API/Supabase helpers and types |
-| mcp/athena_mcp/ | API client and MCP tools |
 | worker/athena_worker/ | Ingestion and captured-listing parsing |
 | supabase/migrations/ | Schema and RLS |
 | supabase/docker/ | Database initialization |
 | supabase/gateway/ | Auth/REST routing |
 
-Base Compose runs db, auth, rest, gateway, api, web, and worker. MCP runs separately on the user's machine. Local ports: web 3000, API 8000, gateway 8001.
+Base Compose runs db, auth, rest, gateway, api, web, and worker. Local ports: web 3000, API 8000, gateway 8001.
+
+The MCP server is in none of that: it lives in its own repository, `athena-mcp`, and runs on each user's own machine, installed from git with `uvx` and holding nothing but an API URL and a personal access token. Nothing in this repository builds or deploys it, and a deployed copy can be any age — so the API surface between the two is versioned and checked when the client starts. See [[API and MCP]].
+
+(The `mcp/` tree in this repository is that repository's prepared state, waiting to be moved across. Drop this paragraph once it has.)
 
 Browser bundles use public URLs. Server-side frontend requests use API_INTERNAL_URL and SUPABASE_INTERNAL_URL within Docker. Public frontend settings are baked into the build.
 

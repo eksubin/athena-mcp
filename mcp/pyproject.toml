@@ -1,6 +1,6 @@
 [project]
 name = "athena-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Thin MCP server — every tool is a typed call to the Athena backend API, which does the ranking/summarizing server-side."
 requires-python = ">=3.12"
 dependencies = [
@@ -11,6 +11,13 @@ dependencies = [
 
 [project.scripts]
 athena-mcp = "athena_mcp.server:main"
+
+[dependency-groups]
+# scripts/smoke_test.py mints a disposable account's JWT to create the
+# access token it then runs the server with.
+dev = [
+    "pyjwt>=2.9",
+]
 
 [build-system]
 requires = ["hatchling"]

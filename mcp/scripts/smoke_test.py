@@ -1,25 +1,59 @@
-"""Exercise every MCP tool over stdio using a disposable local account.
+"""Exercise every MCP tool over stdio against a real Athena deployment.
 
-Run from the repository root with mcp/.venv/Scripts/python scripts/mcp_smoke_test.py.
+This is the executable half of CONTRACT.md: the only check that runs this
+client and a backend together, so it is what you run after changing
+either one. It talks to whatever deployment the environment points it at
+— the local docker stack, or a hosted one over the network — and needs
+two server-side secrets to mint a disposable account, so it is an
+operator's tool, not something a user of the MCP ever runs.
+
+    ATHENA_API_URL             default http://localhost:8000
+    ATHENA_SUPABASE_URL        default http://localhost:8001
+    SUPABASE_SERVICE_ROLE_KEY  required
+    SUPABASE_JWT_SECRET        required
+
+Against the local stack, the two secrets are in the Athena repository's
+root .env. Run it with `uv run python scripts/smoke_test.py`.
 """
 import json
 import os
-from pathlib import Path
 import secrets
 import subprocess
+import sys
+import tempfile
 import threading
 import uuid
 
 import httpx
-from dotenv import dotenv_values
+import jwt
+
+from athena_mcp import contract
+
+
+def environment():
+    """The deployment under test, from the environment alone — nothing
+    here may assume a checkout of the Athena repository next door."""
+    missing = [k for k in ('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_JWT_SECRET') if not os.environ.get(k)]
+    if missing:
+        sys.exit(
+            'smoke_test: set ' + ' and '.join(missing) + '.\n\n'
+            'They are the deployment\'s own secrets (the Athena repository\'s root\n'
+            '.env has them for the local docker stack) and are needed to create and\n'
+            'delete the disposable account this check runs as.'
+        )
+    return (
+        os.environ.get('ATHENA_API_URL', 'http://localhost:8000').rstrip('/'),
+        os.environ.get('ATHENA_SUPABASE_URL', 'http://localhost:8001').rstrip('/'),
+        os.environ['SUPABASE_SERVICE_ROLE_KEY'],
+        os.environ['SUPABASE_JWT_SECRET'],
+    )
 
 
 def main():
-    root = Path(__file__).resolve().parents[1]
-    config = dotenv_values(root / '.env')
-    admin = httpx.Client(base_url='http://localhost:8001', headers={
-        'apikey': config['SUPABASE_SERVICE_ROLE_KEY'],
-        'Authorization': 'Bearer ' + config['SUPABASE_SERVICE_ROLE_KEY'],
+    api_url, supabase_url, service_role_key, jwt_secret = environment()
+    admin = httpx.Client(base_url=supabase_url, headers={
+        'apikey': service_role_key,
+        'Authorization': 'Bearer ' + service_role_key,
     }, timeout=30)
     marker = uuid.uuid4().hex
     email = f'athena-mcp-{marker}@example.com'
@@ -39,13 +73,25 @@ def main():
             'email': email,
             'password': secrets.token_urlsafe(24), 'email_confirm': True,
         }))['id']
-        import jwt
-        token = jwt.encode({'sub': uid, 'aud': 'authenticated', 'role': 'authenticated'}, config['SUPABASE_JWT_SECRET'], algorithm='HS256')
-        api = httpx.Client(base_url='http://localhost:8000', headers={'Authorization': 'Bearer ' + token}, timeout=60)
+        token = jwt.encode({'sub': uid, 'aud': 'authenticated', 'role': 'authenticated'}, jwt_secret, algorithm='HS256')
+        api = httpx.Client(base_url=api_url, headers={'Authorization': 'Bearer ' + token}, timeout=60)
+
+        # The cross-repo contract, checked from the client's side: this
+        # deployment must still speak a version this client can use.
+        health = checked(api.get('/health'))
+        assert isinstance(health.get('mcp_contract'), int), health
+        assert health['mcp_contract_min'] <= contract.CONTRACT_VERSION <= health['mcp_contract'], (
+            f'athena-mcp speaks contract {contract.CONTRACT_VERSION}; {api_url} speaks '
+            f"{health['mcp_contract']} and supports {health['mcp_contract_min']} upward"
+        )
+
         pat = checked(api.post('/tokens', json={'label': 'MCP smoke test'}))['token']
         job_id = checked(api.post('/jobs', json=[{'source': 'smoke-test', 'external_id': marker, 'title': 'MCP Engineer', 'company': 'Athena Test', 'url': 'https://example.com'}]))[0]['id']
-        env = {**os.environ, 'ATHENA_TOKEN': pat, 'ATHENA_API_URL': 'http://localhost:8000'}
-        process = subprocess.Popen([str(root / 'mcp/.venv/Scripts/python.exe'), '-m', 'athena_mcp.server'], cwd=root, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        # Launched the way a desktop client launches it: this interpreter,
+        # from a directory that has nothing of Athena in it, with the two
+        # settings supplied as environment variables and no .env in reach.
+        env = {**os.environ, 'ATHENA_TOKEN': pat, 'ATHENA_API_URL': api_url}
+        process = subprocess.Popen([sys.executable, '-m', 'athena_mcp.server'], cwd=tempfile.gettempdir(), env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         watchdog = threading.Timer(90, process.kill)
         watchdog.start()
 
@@ -137,7 +183,11 @@ def main():
         assert any(row['job_id'] == tracked_job_id and row['job']['url'] for row in queue_rows), queue_rows
         assert all(job['url'] for job in checked(api.get('/jobs', params={'limit': 5})))
 
-        print('PASS: ten MCP tools, launch from repository root, workflow instructions, typed statuses, profile facts, review-only context, repeat-save preservation, one-call tracking with status, and listing links on every record')
+        print(f'PASS against {api_url}: API contract {health["mcp_contract"]} accepts this client '
+              f'(contract {contract.CONTRACT_VERSION}), ten MCP tools, launch from an unrelated '
+              'directory, workflow instructions, typed statuses, profile facts, review-only '
+              'context, repeat-save preservation, one-call tracking with status, and listing '
+              'links on every record')
     finally:
         if watchdog:
             watchdog.cancel()

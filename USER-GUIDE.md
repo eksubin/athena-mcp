@@ -124,17 +124,48 @@ current — without you having to tell it to file anything.
 
 ### Setting it up
 
+There is nothing to download or install by hand. Athena's assistant side
+is a small package called **athena-mcp** that your assistant fetches and
+runs itself; all you provide is one block of configuration.
+
 1. Go to **Settings → Personal access tokens**.
 2. Name the connection something you will recognize ("Claude on my laptop")
    and create a token.
 3. **Copy it now** — it is shown once and never again. If you lose it,
    revoke it and make another.
-4. Put it in your Athena MCP configuration as `ATHENA_TOKEN`
-   (see [mcp/README.md](mcp/README.md) for the exact setup for your client).
-5. Restart your assistant so it picks up the new tools.
+4. Make sure [uv](https://docs.astral.sh/uv/) is installed on the machine
+   your assistant runs on. That is the only prerequisite.
+5. Add this to wherever your assistant keeps its MCP servers, filling in
+   the address of your Athena instance and the token from step 3:
 
-Create a separate token per device, and revoke any you are no longer using —
-revoking takes effect immediately.
+```json
+{
+  "mcpServers": {
+    "athena": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+      "env": {
+        "ATHENA_API_URL": "https://api.athena.example.com",
+        "ATHENA_TOKEN": "athena_pat_..."
+      }
+    }
+  }
+}
+```
+
+6. Restart your assistant so it picks up the new tools. You should see ten
+   of them.
+
+Treat the token like a password — it can read your resume, your answers and
+your whole history. Create a separate one per device, and revoke any you are
+no longer using; revoking takes effect immediately.
+
+If the tools do not appear, athena-mcp says why in its startup message:
+a missing token, a token this instance rejected (revoked, from a different
+instance, or your access withdrawn), a copy of athena-mcp too old for this
+instance, or an address it cannot reach. Its
+[README](https://github.com/<owner>/athena-mcp) has the rest, including
+Codex and how to update to a newer version.
 
 ### What it can do
 
