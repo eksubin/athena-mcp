@@ -13,6 +13,7 @@ Athena is an invite-only job-hunt platform with a web app, FastAPI API, MCP tool
 - [[API and MCP]] — endpoints and agent connection
 - [[Workflows]] — job search, applications, ingestion
 - [[Operations]] — deployment, checks, troubleshooting
+- [[Going Live]] — host choice, first-deploy traps, splitting out the MCP
 
 Open this `obsidian` folder using Obsidian's **Open folder as vault**. No community plugins are required. Start with this note.
 

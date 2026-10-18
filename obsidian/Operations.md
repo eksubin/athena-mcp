@@ -1,10 +1,10 @@
 # Operations
 
-[[Home]] · [[Architecture]] · [[Local Setup]] · [[Google Sign-in]]
+[[Home]] · [[Architecture]] · [[Local Setup]] · [[Google Sign-in]] · [[Going Live]]
 
 ## Deployment
 
-Follow [DEPLOY.md](../DEPLOY.md). That guide states the production configuration had not been exercised on a real server when written; these notes do not establish deployment verification.
+Follow [DEPLOY.md](../DEPLOY.md). [[Going Live]] records the host choice and the traps that fail quietly on a first deploy. That guide states the production configuration had not been exercised on a real server when written; these notes do not establish deployment verification.
 
 Provision Docker, ports 80/443, and app/API/gateway DNS records. Configure production public URLs, CORS, Google's gateway callback, and deployment-specific secrets.
 
