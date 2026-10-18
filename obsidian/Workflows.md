@@ -26,9 +26,13 @@ An agent records jobs as it works rather than on request: `track_job` registers 
 Statuses: saved, applied, pending, interview, offer, rejected. Manage applications at /dashboard or with MCP. Status updates place structures on the user's world plot.
 
 The /world page uses React Three Fiber/three.js and refreshes itself while
-visible, because Realtime is absent. Each user's land is drawn as a bordered
-parcel with a post at each corner — the owner's in brand colour, everyone
-else's in grey — leaving a lane of untouched ground between neighbours.
+visible, because Realtime is absent. Each user's land is a slab of soil with
+a grass top, kerbed at the boundary — the owner's in brand colour, everyone
+else's in grey — with a lane of open ground between neighbours. Saplings,
+trees, houses, monuments and stumps stand on it in flat-shaded low poly;
+each one's rotation and size come from a hash of its own id, so a plot reads
+as a place rather than a grid of identical objects.
+
 `world-scene.tsx` re-declares the plot and structure spacing that
 `services/world.py` uses to place things; the two have to agree, or the
 boundary would be drawn somewhere other than where the structures land.
