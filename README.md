@@ -23,7 +23,7 @@ its free tier auto-paused the project and took the whole app down with it.
   SQL and routing config (see docker-compose.yml's `db`/`auth`/`rest`/`gateway`)
 - `backend/` — FastAPI app: profile (+ extracted resume facts), resumes,
   answers, jobs, applications, world, personal-access-token endpoints
-- [athena-mcp](https://github.com/<owner>/athena-mcp) — the MCP server, in
+- [athena-mcp](https://github.com/eksubin/Athena) — the MCP server, in
   its own repository: ten tools (`track_job`, `search_jobs`, `get_job`,
   `save_job`, `get_queue`, `start_application`, `record_answer`,
   `update_status`, `get_profile`, `import_linkedin_job`). It runs on each
@@ -196,7 +196,7 @@ set as the first administrator. Go to **Settings** and create a personal
 access token.
 
 The MCP server is not part of this stack — it's a separate package,
-[athena-mcp](https://github.com/<owner>/athena-mcp), that runs on the
+[athena-mcp](https://github.com/eksubin/Athena), that runs on the
 machine the assistant runs on. Nothing to check out:
 
 ```json
@@ -204,7 +204,7 @@ machine the assistant runs on. Nothing to check out:
   "mcpServers": {
     "athena": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+      "args": ["--from", "git+https://github.com/eksubin/Athena", "athena-mcp"],
       "env": {
         "ATHENA_API_URL": "http://localhost:8000",
         "ATHENA_TOKEN": "athena_pat_..."

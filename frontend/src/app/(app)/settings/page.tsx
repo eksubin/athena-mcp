@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import type { AccessToken } from "@/lib/types";
-import { PageHeading, SectionHeading } from "@/components/ui";
+import { Icon, PageHeading, SectionHeading } from "@/components/ui";
 import TokenManager from "./token-manager";
 
 export default async function SettingsPage() {
@@ -66,6 +67,14 @@ export default async function SettingsPage() {
               </div>
             </li>
           </ol>
+          <Link
+            href="/setup"
+            className="text-action"
+            style={{ marginTop: 24 }}
+          >
+            <Icon name="arrow" size={14} />
+            Full setup instructions
+          </Link>
         </aside>
       </div>
     </>

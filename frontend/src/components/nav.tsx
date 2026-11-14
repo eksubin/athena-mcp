@@ -11,6 +11,7 @@ const LINKS: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Overview", icon: "grid" },
   { href: "/profile", label: "My profile", icon: "user" },
   { href: "/world", label: "My world", icon: "world" },
+  { href: "/setup", label: "Set up assistant", icon: "spark" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
 // Hiding this from members is presentation only — /admin redirects and

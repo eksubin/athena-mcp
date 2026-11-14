@@ -1,7 +1,7 @@
 # athena-mcp
 
 An MCP server that lets an AI assistant run your job search out of
-[Athena](https://github.com/<owner>/athena).
+Athena.
 
 Athena is an invite-only job-hunt platform: it ingests postings, scores
 them against your resume, keeps one record per job as it moves from saved
@@ -42,7 +42,7 @@ on your machine; everything else it handles.
   "mcpServers": {
     "athena": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+      "args": ["--from", "git+https://github.com/eksubin/Athena", "athena-mcp"],
       "env": {
         "ATHENA_API_URL": "https://api.athena.example.com",
         "ATHENA_TOKEN": "athena_pat_..."
@@ -58,11 +58,11 @@ Claude Desktop's config file, Codex's `~/.codex/config.toml`, VS Code's
 ten tools appear. For Codex, the equivalent is:
 
 ```sh
-codex mcp add athena --env ATHENA_API_URL=https://api.athena.example.com --env ATHENA_TOKEN=athena_pat_... -- uvx --from git+https://github.com/<owner>/athena-mcp athena-mcp
+codex mcp add athena --env ATHENA_API_URL=https://api.athena.example.com --env ATHENA_TOKEN=athena_pat_... -- uvx --from git+https://github.com/eksubin/Athena athena-mcp
 ```
 
 To pick up a new version later, add `--refresh` to the `uvx` arguments
-once, or run `uvx --refresh --from git+https://github.com/<owner>/athena-mcp athena-mcp`
+once, or run `uvx --refresh --from git+https://github.com/eksubin/Athena athena-mcp`
 by hand and restart your client.
 
 Both settings can also come from the environment, or from a `.env` file
@@ -123,6 +123,31 @@ permission. Recording a job is bookkeeping, not an action taken on your
 behalf, and a job search that you have to remember to log is a job search
 with holes in it.
 
+## The skill
+
+`skills/athena-jobs/` is a skill for Claude that goes with this server. It
+makes job-hunt work conditional on Athena: its first step calls
+`get_profile`, and if the tools are missing or the call fails it stops and
+says how to connect instead of searching or applying unrecorded. Once
+connected, it records every listing it handles with `track_job`, saves new
+form answers with `record_answer`, and only marks a job `applied` after the
+employer's confirmation.
+
+Copy the folder into your skills directory and restart Claude:
+
+```sh
+# macOS / Linux
+cp -r skills/athena-jobs ~/.claude/skills/
+```
+
+```powershell
+# Windows
+Copy-Item -Recurse skills\athena-jobs $HOME\.claude\skills\
+```
+
+A skill is instructions, not a lock: it stops a cooperative assistant from
+working without Athena, and nothing more.
+
 ## Review-only, and why
 
 Athena stores job-search data. It does not submit employer applications,
@@ -175,8 +200,8 @@ check the result.
 ## Working on it
 
 ```sh
-git clone https://github.com/<owner>/athena-mcp
-cd athena-mcp
+git clone https://github.com/eksubin/Athena
+cd Athena
 cp .env.example .env     # ATHENA_API_URL and your token
 uv sync
 uv run athena-mcp        # or point your client's "command" at uv --directory
@@ -215,7 +240,7 @@ It never contacts an employer.
 ## The other side
 
 The backend, web app, ingestion worker and database live in the
-[Athena repository](https://github.com/<owner>/athena). Because the two
+Athena platform's own repository, which is private. Because the two
 ship separately and users update this one on their own schedule, the API
 surface between them is versioned and checked at startup:
 [CONTRACT.md](CONTRACT.md) is what it covers and what moves the number.

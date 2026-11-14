@@ -143,7 +143,7 @@ runs itself; all you provide is one block of configuration.
   "mcpServers": {
     "athena": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+      "args": ["--from", "git+https://github.com/eksubin/Athena", "athena-mcp"],
       "env": {
         "ATHENA_API_URL": "https://api.athena.example.com",
         "ATHENA_TOKEN": "athena_pat_..."
@@ -153,8 +153,46 @@ runs itself; all you provide is one block of configuration.
 }
 ```
 
+   In Claude Code the same thing is one command:
+
+```sh
+claude mcp add athena -s user -e ATHENA_API_URL=https://api.athena.example.com -e ATHENA_TOKEN=athena_pat_... -- uvx --from "git+https://github.com/eksubin/Athena" athena-mcp
+```
+
 6. Restart your assistant so it picks up the new tools. You should see ten
    of them.
+
+The **Set up assistant** page inside Athena shows these same steps with
+your instance's address already filled in.
+
+### The skill (Claude)
+
+A skill called **athena-jobs** goes with the connection. It makes Claude
+check that Athena is reachable before doing any job-hunt work — if it is
+not, Claude stops and says how to connect instead of carrying on
+unrecorded — and it records every role Claude handles as it goes. Install
+it once:
+
+```sh
+# macOS / Linux
+mkdir -p ~/.claude/skills/athena-jobs && curl -fsSL https://raw.githubusercontent.com/eksubin/Athena/main/skills/athena-jobs/SKILL.md -o ~/.claude/skills/athena-jobs/SKILL.md
+```
+
+```powershell
+# Windows
+New-Item -ItemType Directory -Force "$HOME\.claude\skills\athena-jobs"; Invoke-WebRequest https://raw.githubusercontent.com/eksubin/Athena/main/skills/athena-jobs/SKILL.md -OutFile "$HOME\.claude\skills\athena-jobs\SKILL.md"
+```
+
+Restart Claude, then ask it to "use athena-jobs" for anything to do with
+your search.
+
+### The browser
+
+Your assistant reads listings and fills forms in its own browser: Claude in
+Chrome (or Claude's built-in browser), or ChatGPT's own browser. For
+LinkedIn and employer sites, install the Claude in Chrome extension and
+sign in to those sites yourself in Chrome first — your assistant will not
+type your passwords.
 
 Treat the token like a password — it can read your resume, your answers and
 your whole history. Create a separate one per device, and revoke any you are
@@ -164,7 +202,7 @@ If the tools do not appear, athena-mcp says why in its startup message:
 a missing token, a token this instance rejected (revoked, from a different
 instance, or your access withdrawn), a copy of athena-mcp too old for this
 instance, or an address it cannot reach. Its
-[README](https://github.com/<owner>/athena-mcp) has the rest, including
+[README](https://github.com/eksubin/Athena) has the rest, including
 Codex and how to update to a newer version.
 
 ### What it can do

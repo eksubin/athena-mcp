@@ -8,7 +8,7 @@ from athena_mcp.config import Settings
 
 class AthenaClient:
     """Typed API calls and small workflow bundles. Ranking and extracted
-    profile facts stay on the backend; browser actions stay in BrowserOS."""
+    profile facts stay on the backend; browser actions stay in the assistant's own browser."""
 
     def __init__(self, settings: Settings):
         self._http = httpx.Client(
@@ -103,7 +103,7 @@ class AthenaClient:
         answers.raise_for_status()
         return {"job": job, "application": application, "answers": answers.json(),
                 "profile": self.get_profile(), "submitted": False,
-                "next_step": "Prepare the employer form in BrowserOS. This tool does not submit an application."}
+                "next_step": "Prepare the employer form in the assistant's own browser. This tool does not submit an application."}
 
     def record_answer(self, question: str, answer: str, sensitive: bool = False) -> dict:
         r = self._http.post(

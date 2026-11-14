@@ -81,7 +81,7 @@ The whole of a new user's configuration is now:
 ```json
 {"mcpServers": {"athena": {
   "command": "uvx",
-  "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+  "args": ["--from", "git+https://github.com/eksubin/Athena", "athena-mcp"],
   "env": {"ATHENA_API_URL": "https://api.<domain>",
           "ATHENA_TOKEN": "athena_pat_..."}}}}
 ```

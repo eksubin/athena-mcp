@@ -56,7 +56,7 @@ The MCP server is not part of this stack. It is a separate package, `athena-mcp`
   "mcpServers": {
     "athena": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/<owner>/athena-mcp", "athena-mcp"],
+      "args": ["--from", "git+https://github.com/eksubin/Athena", "athena-mcp"],
       "env": {
         "ATHENA_API_URL": "https://api.athena.example.com",
         "ATHENA_TOKEN": "athena_pat_..."
