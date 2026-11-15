@@ -7,6 +7,10 @@ neither has been exercised against a real server yet, since building this
 didn't have one to deploy to. Caddy's automatic-HTTPS behavior is
 well-established, but treat the first real run as a first real run.
 
+For a full walkthrough on AWS EC2 with a GoDaddy domain, including a
+script that writes `.env` and a troubleshooting section, see
+[DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## 1. Prerequisites
 
 - A VPS with Docker + Docker Compose installed, and ports 80/443 open
