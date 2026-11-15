@@ -17,3 +17,5 @@ build/
 *.egg-info/
 .pytest_cache/
 .DS_Store
+athena.tar.gz
+athena-key.pem
