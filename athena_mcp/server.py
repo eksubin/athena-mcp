@@ -37,7 +37,8 @@ mcp = MCPServer("athena", instructions=(
     "location, salary range, remote and easy-apply flags, posting date and description. "
     "Repeat calls are safe: track_job updates the existing record instead of duplicating it. "
     "Athena stores job-search data; it does not submit employer applications. "
-    "Use BrowserOS for LinkedIn and employer forms. start_application prepares context only. "
+    "Use the browser built into the assistant the user is running (Claude's or ChatGPT's own browser) "
+    "for listings and employer forms. start_application prepares context only. "
     "Respect review-only requests: leave the application saved, never mark it applied. "
     "Record applied only after an authorized submission and visible employer confirmation. "
     "Use verified profile facts; ask about missing or low-confidence facts. Confirm sensitive answers before reuse. "
@@ -116,7 +117,7 @@ def import_linkedin_job(
     easy_apply: bool | None = None,
     posted_at: str | None = None,
 ) -> dict:
-    """Register a LinkedIn listing already inspected in BrowserOS, and save
+    """Register a LinkedIn listing already inspected in the browser, and save
     it. Prefer track_job unless you specifically want the LinkedIn URL
     check - this accepts only a https://www.linkedin.com/jobs/view/<id>
     link, and rejects a search page URL.

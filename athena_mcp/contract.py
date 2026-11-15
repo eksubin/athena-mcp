@@ -30,7 +30,7 @@ def refusal(health: dict, api_url: str) -> str | None:
         f"This athena-mcp speaks API contract {CONTRACT_VERSION}, but the server "
         f"at {api_url} no longer supports anything below {minimum}.\n\n"
         "Update it and restart your assistant:\n\n"
-        "  uvx --refresh --from git+https://github.com/<owner>/athena-mcp athena-mcp"
+        "  uvx --refresh --from git+https://github.com/eksubin/Athena athena-mcp"
     )
 
 
